@@ -12,9 +12,6 @@ pub struct InternalStreamEvent {
     /// The textual content of the event.
     /// Optional as some events might represent actions or metadata without direct text content.
     pub content: Option<String>,
-    // Potentially add other fields later, like:
-    // pub event_type: String, // e.g., "message_start", "content_block", "message_stop", "tool_call"
-    // pub metadata: Option<serde_json::Value>, // For additional context
 }
 
 impl InternalStreamEvent {

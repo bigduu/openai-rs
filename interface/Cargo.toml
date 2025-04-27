@@ -1,0 +1,29 @@
+[package]
+name = "interface"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+domain = { path = "../domain" }
+app = { path = "../app" }
+infra = { path = "../infra" }
+
+# Web Framework
+actix-web = { workspace = true }
+
+# Runtime
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures-util = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+env_logger = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }

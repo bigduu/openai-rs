@@ -1,0 +1,14 @@
+[package]
+name = "openai-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+domain = { path = "../domain" }
+app = { path = "../app" }
+infra = { path = "../infra" }
+interface = { path = "../interface" }
+
+actix-web = { workspace = true }
+tokio = { workspace = true }
+env_logger = { workspace = true }
