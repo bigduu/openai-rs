@@ -244,3 +244,7 @@ cargo run --bin server
    - 检查配置文件是否正确
    - 确认环境变量设置
    - 查看日志获取详细错误信息
+
+## 许可证
+
+本项目使用 [Apache License 2.0](./LICENSE) 进行许可。

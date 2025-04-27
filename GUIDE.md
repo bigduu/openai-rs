@@ -394,3 +394,7 @@ struct Holder<'a> { data: &'a str }
 - 检查错误处理逻辑
 - 验证异步函数实现
 - 检查资源释放时机
+
+## 许可证
+
+本项目使用 [Apache License 2.0](./LICENSE) 进行许可。
