@@ -8,7 +8,7 @@ pub struct ResponseFormat {
 }
 
 /// Represents usage statistics for the completion request.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CompletionUsage {
     /// Number of tokens in the generated completion.
     pub completion_tokens: u32,
@@ -19,14 +19,14 @@ pub struct CompletionUsage {
 }
 
 /// Represents log probability information.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct LogProbs {
     /// A list of message content tokens with log probability information.
     pub content: Option<Vec<TokenLogProb>>,
 }
 
 /// Represents a single token's log probability information.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TokenLogProb {
     /// The token.
     pub token: String,
@@ -39,7 +39,7 @@ pub struct TokenLogProb {
 }
 
 /// Represents one of the most likely tokens and its log probability.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TopLogProb {
     /// The token.
     pub token: String,

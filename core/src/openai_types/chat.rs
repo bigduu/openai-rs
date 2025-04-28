@@ -29,7 +29,7 @@ pub struct OpenAiChatMessage {
 }
 
 /// Represents the request body for the OpenAI Chat Completions API.
-#[derive(Debug, Clone, Serialize, Default, Builder)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Builder)]
 #[builder(setter(strip_option), default)]
 pub struct OpenAiChatCompletionRequest {
     /// ID of the model to use.

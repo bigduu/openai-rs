@@ -21,7 +21,7 @@ pub struct FunctionCall {
 }
 
 /// Represents a tool definition provided by the user.
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Tool {
     /// The type of the tool. Currently, only `function` is supported.
     pub r#type: String, // Should be "function"
@@ -30,7 +30,7 @@ pub struct Tool {
 }
 
 /// Represents the definition of a function tool.
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FunctionDefinition {
     /// A description of what the function does.
     pub description: Option<String>,
@@ -41,7 +41,7 @@ pub struct FunctionDefinition {
 }
 
 /// Controls which (if any) function is called by the model.
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
 pub enum ToolChoice {
     /// The model will not call a function and instead generates a message.
@@ -64,7 +64,7 @@ pub enum ToolChoice {
 }
 
 /// Helper struct for specifying a function name within ToolChoice.
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FunctionName {
     pub name: String,
 }

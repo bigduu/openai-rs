@@ -5,9 +5,10 @@
 //! and token provider interfaces, and potentially common utilities.
 
 // Module declarations
-pub mod event;
+pub mod client_provider;
 pub mod openai_types;
 pub mod processor;
+pub mod processor_chain;
 pub mod token_provider;
 pub mod url_provider;
 
@@ -18,7 +19,7 @@ pub mod parser;
 pub mod sse; // Added for managing the chain itself
 
 // Re-export key types for easier access
-pub use event::InternalStreamEvent;
 pub use processor::Processor;
+pub use processor_chain::ProcessorChain;
 pub use token_provider::{StaticTokenProvider, TokenProvider}; // Added StaticTokenProvider
 pub use url_provider::{StaticUrlProvider, UrlProvider};
