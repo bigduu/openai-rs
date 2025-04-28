@@ -1,10 +1,9 @@
 use actix_web::{App, Error, HttpResponse, HttpServer, Responder, get, post, web};
 use core::{
-    InternalStreamEvent,
-    forwarder::StreamForwarder, // Make sure StreamForwarder is pub in core/src/forwarder.rs
-    parser::RequestParser,
+    InternalStreamEvent, StaticUrlProvider,
+    forwarder::StreamForwarder,
+    parser::{JsonParser, RequestParser},
     processor::ProcessorChain,
-    // sse::SseHandler, // Not used directly in this version, formatting is local
     token_provider::StaticTokenProvider,
 };
 use futures_util::StreamExt;
@@ -46,11 +45,13 @@ async fn chat_handler(req_body: web::Bytes) -> impl Responder {
     });
     let model_name = env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-3.5-turbo".to_string());
 
+    let url_provider =
+        StaticUrlProvider::new("https://api.openai.com/v1/chat/completions".to_string());
     let token_provider = StaticTokenProvider::new(api_key);
     // Ensure StreamForwarder::new is public
     let forwarder = StreamForwarder::new(client, model_name);
     // Ensure RequestParser::new is public
-    let parser = RequestParser::new();
+    let parser = JsonParser::new();
     // Ensure ProcessorChain::new is public
     let processor_chain = ProcessorChain::new(vec![]); // Empty chain for MVP
     // --- Processing ---
@@ -78,7 +79,9 @@ async fn chat_handler(req_body: web::Bytes) -> impl Responder {
 
     // 3. & 4. Forward to OpenAI and get response stream
     // Ensure StreamForwarder::forward is public
-    let response_stream_result = forwarder.forward(processed_events, &token_provider).await;
+    let response_stream_result = forwarder
+        .forward(processed_events, &token_provider, &url_provider)
+        .await;
 
     match response_stream_result {
         Ok(openai_stream) => {

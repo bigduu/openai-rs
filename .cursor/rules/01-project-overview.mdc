@@ -1,21 +1,5 @@
 ---
-description: 
-globs: 
+description:
+globs:
 alwaysApply: false
 ---
-# OpenAI-RS Project Overview
-
-This is a Rust-based intelligent streaming proxy system for LLM APIs with enhancement capabilities. The project follows a clean architecture pattern with multiple layers.
-
-## Key Files
-- [Cargo.toml](mdc:Cargo.toml) - Main workspace and dependency configuration
-- [artitacture.md](mdc:artitacture.md) - Detailed architecture documentation
-
-## Core Crates
-- [binary/](mdc:binary) - Application binaries and entry points
-- [interface/](mdc:interface) - API interfaces and HTTP handlers
-- [app/](mdc:app) - Application business logic
-- [domain/](mdc:domain) - Core domain models and traits
-- [infra/](mdc:infra) - Infrastructure implementations
-
-The project is designed as a streaming proxy that can enhance, modify, and process LLM API responses in real-time, with support for multiple LLM providers and extensible processing capabilities.

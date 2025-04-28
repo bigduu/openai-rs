@@ -9,6 +9,7 @@ pub mod event;
 pub mod openai_types;
 pub mod processor;
 pub mod token_provider;
+pub mod url_provider;
 
 // Placeholder modules for future implementation
 // pub mod http; // Likely handled in main.rs or a separate crate if it grows complex
@@ -20,3 +21,4 @@ pub mod sse; // Added for managing the chain itself
 pub use event::InternalStreamEvent;
 pub use processor::Processor;
 pub use token_provider::{StaticTokenProvider, TokenProvider}; // Added StaticTokenProvider
+pub use url_provider::{StaticUrlProvider, UrlProvider};

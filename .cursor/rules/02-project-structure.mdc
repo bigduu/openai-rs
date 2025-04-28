@@ -1,0 +1,45 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Project Structure Guide
+
+## Workspace Organization
+
+The project is organized as a Rust workspace with multiple crates:
+
+```
+.
+├── core/           # Core library with shared functionality
+├── server/         # HTTP server implementation
+└── Cargo.toml      # Workspace configuration
+```
+
+## Core Components Structure
+
+The system follows a plugin-based architecture with several key traits:
+
+### TokenProvider System
+- Supports multiple authentication strategies
+- Includes static, dynamic, cached, and chained providers
+- Handles token management for different LLM APIs
+
+### Processor Chain
+- Pluggable stream processors
+- Each processor can modify, insert, or delete messages
+- Supports async operations and external service calls
+
+### Event System
+- Uses standardized internal event format
+- Supports role-based message handling
+- Provides consistent interface across different LLM APIs
+
+## Configuration
+
+The project uses [Cargo.toml](mdc:Cargo.toml) for dependency management with carefully selected versions for:
+- Async runtime (tokio)
+- HTTP client (reqwest)
+- Web framework (actix-web)
+- Serialization (serde)
+- Logging (tracing)

@@ -6,15 +6,13 @@ use crate::openai_types::{
     OpenAiStreamChunk,
 };
 use crate::token_provider::TokenProvider;
+use crate::url_provider::UrlProvider;
 use anyhow::{Context, Result};
 use bytes::Bytes;
 use futures_util::{Stream, StreamExt}; // Use Stream trait from futures_util
 use reqwest::{self};
 use serde_json::Value;
 use std::pin::Pin;
-
-// Define the OpenAI API endpoint URL (consider making this configurable)
-const OPENAI_CHAT_COMPLETIONS_URL: &str = "https://api.openai.com/v1/chat/completions";
 
 pub struct StreamForwarder {
     client: reqwest::Client,
@@ -95,14 +93,25 @@ impl StreamForwarder {
     ///
     /// * `token` - The authentication token for the API
     /// * `request_body` - The serialized request body
+    /// * `url_provider` - The URL provider to get the API endpoint
     ///
     /// # Returns
     ///
     /// A `Result` containing the API response if successful
-    async fn send_request(&self, token: String, request_body: Value) -> Result<reqwest::Response> {
+    async fn send_request(
+        &self,
+        token: String,
+        request_body: Value,
+        url_provider: &dyn UrlProvider,
+    ) -> Result<reqwest::Response> {
+        let url = url_provider
+            .get_url()
+            .await
+            .context("Failed to get API URL")?;
+
         let response = self
             .client
-            .post(OPENAI_CHAT_COMPLETIONS_URL)
+            .post(url)
             .bearer_auth(token)
             .json(&request_body)
             .send()
@@ -197,6 +206,7 @@ impl StreamForwarder {
     ///
     /// * `events` - A vector of `InternalStreamEvent`s representing the conversation history/prompt
     /// * `token_provider` - A `TokenProvider` implementation to get the authentication token
+    /// * `url_provider` - A `UrlProvider` implementation to get the API endpoint
     ///
     /// # Returns
     ///
@@ -205,6 +215,7 @@ impl StreamForwarder {
         &self,
         events: Vec<InternalStreamEvent>,
         token_provider: &dyn TokenProvider,
+        url_provider: &dyn UrlProvider,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<InternalStreamEvent>> + Send>>> {
         let messages = self.convert_to_openai_messages(events)?;
         let request_body = self.build_chat_request(messages)?;
@@ -212,7 +223,7 @@ impl StreamForwarder {
             .get_token()
             .await
             .context("Failed to get authentication token")?;
-        let response = self.send_request(token, request_body).await?;
+        let response = self.send_request(token, request_body, url_provider).await?;
         let byte_stream = response.bytes_stream();
         let event_stream = Self::process_stream(byte_stream);
 

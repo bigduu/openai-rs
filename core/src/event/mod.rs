@@ -1,5 +1,11 @@
 use serde::{Deserialize, Serialize};
 
+mod event_type;
+mod metadata;
+
+pub use event_type::EventType;
+pub use metadata::EventMetadata;
+
 /// Represents a standardized event structure used internally within the processing pipeline.
 /// This allows different components to work with a consistent data format, regardless of
 /// the original source (e.g., OpenAI API, Claude API) or the target format.
@@ -12,15 +18,23 @@ pub struct InternalStreamEvent {
     /// The textual content of the event.
     /// Optional as some events might represent actions or metadata without direct text content.
     pub content: Option<String>,
-    // Potentially add other fields later, like:
-    // pub event_type: String, // e.g., "message_start", "content_block", "message_stop", "tool_call"
-    // pub metadata: Option<serde_json::Value>, // For additional context
+
+    /// The type of the event
+    pub event_type: Option<EventType>,
+
+    /// Additional metadata associated with the event
+    pub metadata: Option<EventMetadata>,
 }
 
 impl InternalStreamEvent {
     /// Creates a new event with the given role and content.
     pub fn new(role: Option<String>, content: Option<String>) -> Self {
-        InternalStreamEvent { role, content }
+        InternalStreamEvent {
+            role,
+            content,
+            event_type: None,
+            metadata: None,
+        }
     }
 
     /// Creates a simple user message event.
@@ -31,5 +45,22 @@ impl InternalStreamEvent {
     /// Creates a simple assistant message event.
     pub fn new_assistant(content: String) -> Self {
         Self::new(Some("assistant".to_string()), Some(content))
+    }
+
+    /// Creates a simple system message event.
+    pub fn new_system(content: String) -> Self {
+        Self::new(Some("system".to_string()), Some(content))
+    }
+
+    /// Sets the event type
+    pub fn with_event_type(mut self, event_type: EventType) -> Self {
+        self.event_type = Some(event_type);
+        self
+    }
+
+    /// Sets the metadata
+    pub fn with_metadata(mut self, metadata: EventMetadata) -> Self {
+        self.metadata = Some(metadata);
+        self
     }
 }
