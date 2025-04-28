@@ -3,7 +3,7 @@ use core::{
     InternalStreamEvent,
     forwarder::StreamForwarder, // Make sure StreamForwarder is pub in core/src/forwarder.rs
     parser::RequestParser,
-    processor_chain::ProcessorChain,
+    processor::ProcessorChain,
     // sse::SseHandler, // Not used directly in this version, formatting is local
     token_provider::StaticTokenProvider,
 };

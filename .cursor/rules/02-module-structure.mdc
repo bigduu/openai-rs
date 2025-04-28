@@ -1,0 +1,41 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Module Structure and Responsibilities
+
+## Architecture Layers
+
+### Interface Layer ([interface/](mdc:interface))
+- HTTP Server handlers
+- Request parsing and validation
+- SSE (Server-Sent Events) response handling
+
+### Application Layer ([app/](mdc:app))
+- Stream processing chain implementation
+- Processor plugins coordination
+- Business logic orchestration
+
+### Domain Layer ([domain/](mdc:domain))
+- Core domain models
+- Trait definitions for processors
+- Token provider interfaces
+- Internal event structures
+
+### Infrastructure Layer ([infra/](mdc:infra))
+- LLM API client implementations
+- Token provider implementations
+- Concrete processor implementations
+- External service integrations
+
+### Binary Layer ([binary/](mdc:binary))
+- Application entry points
+- Configuration loading
+- Service bootstrapping
+
+## Key Abstractions
+- Processor Chain: Pluggable stream processors for message transformation
+- TokenProvider: Authentication token management system
+- StreamForwarder: LLM API communication handler
+- InternalStreamEvent: Standardized message format

@@ -30,3 +30,5 @@ actix-web = "4"
 tracing = { version = "0.1.41", features = ["log"] }
 tracing-subscriber = { version = "0.3.19", features = ["fmt", "time"] }
 env_logger = { version = "0.11", features = ["env"] }                   # For logging
+
+bytes = { version = "1.6.0" }

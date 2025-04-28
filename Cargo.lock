@@ -433,6 +433,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bytes",
  "derive_builder",
  "futures-util",
  "reqwest",

@@ -2,13 +2,14 @@
 
 use crate::event::InternalStreamEvent;
 use crate::openai_types::{
-    OpenAiChatCompletionRequest, OpenAiChatCompletionRequestBuilder, OpenAiChatMessage,
-    OpenAiChatMessageBuilder, OpenAiStreamChunk,
+    OpenAiChatCompletionRequestBuilder, OpenAiChatMessage, OpenAiChatMessageBuilder,
+    OpenAiStreamChunk,
 };
 use crate::token_provider::TokenProvider;
 use anyhow::{Context, Result};
+use bytes::Bytes;
 use futures_util::{Stream, StreamExt}; // Use Stream trait from futures_util
-use reqwest::{self, Bytes};
+use reqwest::{self};
 use serde_json::Value;
 use std::pin::Pin;
 

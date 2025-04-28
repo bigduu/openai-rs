@@ -8,33 +8,15 @@
 pub mod event;
 pub mod openai_types;
 pub mod processor;
-pub mod token_provider; // Added OpenAI specific types
+pub mod token_provider;
 
 // Placeholder modules for future implementation
 // pub mod http; // Likely handled in main.rs or a separate crate if it grows complex
 pub mod forwarder;
-pub mod modifier;
 pub mod parser;
-pub mod processor_chain;
 pub mod sse; // Added for managing the chain itself
 
 // Re-export key types for easier access
 pub use event::InternalStreamEvent;
 pub use processor::Processor;
 pub use token_provider::{StaticTokenProvider, TokenProvider}; // Added StaticTokenProvider
-
-// Example function (can be removed later)
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
