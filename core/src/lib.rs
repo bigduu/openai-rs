@@ -16,7 +16,6 @@ pub mod url_provider;
 // pub mod http; // Likely handled in main.rs or a separate crate if it grows complex
 pub mod forwarder;
 pub mod parser;
-pub mod sse; // Added for managing the chain itself
 
 // Re-export key types for easier access
 pub use processor::Processor;

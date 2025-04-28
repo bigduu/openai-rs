@@ -87,40 +87,40 @@ impl StreamForwarder {
                 chunk_result
                     .map_err(|e| anyhow::anyhow!("Error reading chunk from OpenAI stream: {}", e))
             })
-            .map(|chunk_result| {
-                match chunk_result {
-                    Ok(chunk) => {
-                        let lines = String::from_utf8_lossy(&chunk);
-                        let mut events = Vec::new();
-                        for line in lines.lines() {
-                            if line.starts_with("data:") {
-                                let data = line[5..].trim();
-                                if data == "[DONE]" {
-                                    events.push(Ok(StreamEvent::Done));
-                                    break;
-                                }
-                                match serde_json::from_str::<OpenAiStreamChunk>(data) {
-                                    Ok(chunk_data) => {
-                                        events.push(Ok(StreamEvent::Chunk(chunk_data)));
-                                    }
-                                    Err(e) => {
-                                        eprintln!(
-                                            "Failed to parse OpenAI stream chunk JSON: {:?}, data: '{}'",
-                                            e, data
-                                        );
-                                        events.push(Err(anyhow::anyhow!(
-                                            "Failed to parse OpenAI stream chunk: {}",
-                                            e
-                                        )));
-                                    }
-                                }
-                            }
-                        }
-                        futures_util::stream::iter(events)
-                    }
-                    Err(e) => futures_util::stream::iter(vec![Err(e)]),
-                }
+            .map(|chunk_result| match chunk_result {
+                Ok(chunk) => Self::process_chunk(chunk),
+                Err(e) => futures_util::stream::iter(vec![Err(e)]).boxed(),
             })
             .flatten()
+    }
+
+    fn process_chunk(chunk: Bytes) -> Pin<Box<dyn Stream<Item = Result<StreamEvent>> + Send>> {
+        let lines = String::from_utf8_lossy(&chunk);
+        let mut events = Vec::new();
+        for line in lines.lines() {
+            if line.starts_with("data:") {
+                let data = line[5..].trim();
+                if data == "[DONE]" {
+                    events.push(Ok(StreamEvent::Done));
+                    break;
+                }
+                match serde_json::from_str::<OpenAiStreamChunk>(data) {
+                    Ok(chunk_data) => {
+                        events.push(Ok(StreamEvent::Chunk(chunk_data)));
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "Failed to parse OpenAI stream chunk JSON: {:?}, data: '{}'",
+                            e, data
+                        );
+                        events.push(Err(anyhow::anyhow!(
+                            "Failed to parse OpenAI stream chunk: {}",
+                            e
+                        )));
+                    }
+                }
+            }
+        }
+        futures_util::stream::iter(events).boxed()
     }
 }
