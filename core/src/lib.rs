@@ -4,6 +4,11 @@
 //! throughout the system, including the internal event format, processor
 //! and token provider interfaces, and potentially common utilities.
 
+// Re-export necessary types for doc tests
+pub use std::future;
+pub use std::marker;
+pub use std::pin;
+
 // Module declarations
 pub mod client_provider;
 pub mod context;

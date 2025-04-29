@@ -13,6 +13,25 @@ use async_trait::async_trait;
 /// This abstraction allows the core forwarding logic to remain decoupled from
 /// specific authentication mechanisms. Different strategies (static keys,
 /// dynamic token refresh, caching) can be implemented and swapped easily.
+///
+/// # Example
+/// ```rust
+/// use core::token_provider::{TokenProvider, StaticTokenProvider};
+/// use std::sync::Arc;
+///
+/// #[tokio::main]
+/// async fn main() -> anyhow::Result<()> {
+///     // Create a static token provider
+///     let provider: Arc<dyn TokenProvider> = Arc::new(
+///         StaticTokenProvider::new("your-api-key".to_string())
+///     );
+///
+///     // Get the token
+///     let token = provider.get_token().await?;
+///     assert_eq!(token, "your-api-key");
+///     Ok(())
+/// }
+/// ```
 #[async_trait]
 pub trait TokenProvider: Send + Sync {
     /// Asynchronously retrieves an authentication token.

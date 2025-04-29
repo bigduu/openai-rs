@@ -1,27 +1,55 @@
-mod json_parser;
+pub mod json_parser;
 pub use json_parser::JsonParser;
 
 use crate::openai_types::chat::OpenAiChatCompletionRequest;
 use anyhow::Result;
 
-/// Defines the contract for parsing incoming HTTP requests into OpenAiChatCompletionRequest.
+/// Trait defining the contract for parsing incoming HTTP requests.
 ///
-/// Implementations of this trait are responsible for converting raw request data
-/// into a structured format that can be processed by the core forwarding logic.
+/// # Example
+/// ```rust
+/// use core::parser::RequestParser;
+/// use core::openai_types::chat::{OpenAiChatCompletionRequest, OpenAiChatMessage};
+/// use std::sync::Arc;
 ///
-/// This abstraction allows the core forwarding logic to remain decoupled from
-/// specific parsing mechanisms. Different strategies (JSON, XML, custom formats)
-/// can be implemented and swapped easily.
+/// struct JsonParser;
+///
+/// impl RequestParser for JsonParser {
+///     fn parse_request(&self, body: &[u8]) -> anyhow::Result<OpenAiChatCompletionRequest> {
+///         let request: OpenAiChatCompletionRequest = serde_json::from_slice(body)?;
+///         Ok(request)
+///     }
+/// }
+///
+/// #[tokio::main]
+/// async fn main() -> anyhow::Result<()> {
+///     let parser = JsonParser;
+///     let body = r#"{
+///         "model": "gpt-3.5-turbo",
+///         "messages": [
+///             {
+///                 "role": "user",
+///                 "content": "Hello"
+///             }
+///         ]
+///     }"#.as_bytes();
+///
+///     let request = parser.parse_request(body)?;
+///     assert_eq!(request.model, "gpt-3.5-turbo");
+///     assert_eq!(request.messages[0].content, Some("Hello".to_string()));
+///     assert_eq!(request.messages[0].role, "user".to_string());
+///     Ok(())
+/// }
+/// ```
 pub trait RequestParser: Send + Sync {
-    /// Parses the raw request body into a OpenAiChatCompletionRequest.
+    /// Parses the given request body into an `OpenAiChatCompletionRequest`.
     ///
     /// # Arguments
     ///
-    /// * `request_body` - The raw bytes of the HTTP request body
+    /// * `body`: The raw request body bytes.
     ///
     /// # Returns
     ///
-    /// * `Ok(OpenAiChatCompletionRequest)`: Containing the parsed request if successful
-    /// * `Err(anyhow::Error)`: If an error occurred during parsing
-    fn parse(&self, request_body: &[u8]) -> Result<OpenAiChatCompletionRequest>;
+    /// The parsed request or an error if parsing failed.
+    fn parse_request(&self, body: &[u8]) -> Result<OpenAiChatCompletionRequest>;
 }

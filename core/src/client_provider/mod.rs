@@ -12,6 +12,24 @@ use reqwest::Client;
 ///
 /// This abstraction allows the core forwarding logic to remain decoupled from
 /// specific client configurations and implementations.
+///
+/// # Example
+/// ```rust
+/// use core::client_provider::{ClientProvider, StaticClientProvider};
+/// use std::sync::Arc;
+///
+/// #[tokio::main]
+/// async fn main() -> anyhow::Result<()> {
+///     // Create a static client provider
+///     let provider: Arc<dyn ClientProvider> = Arc::new(StaticClientProvider::new());
+///
+///     // Get a client
+///     let client = provider.get_client().await?;
+///     
+///     // The client can now be used to make HTTP requests
+///     Ok(())
+/// }
+/// ```
 #[async_trait]
 pub trait ClientProvider: Send + Sync {
     /// Asynchronously retrieves an HTTP client.
