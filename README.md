@@ -27,12 +27,14 @@ The project is organized into two main components:
 ## Installation
 
 1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/openai-rs.git
-cd openai-rs
-```
+
+    ```bash
+    git clone https://github.com/yourusername/openai-rs.git
+    cd openai-rs
+    ```
 
 2. Build the project:
+
 ```bash
 cargo build
 ```
@@ -82,4 +84,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details. 
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
