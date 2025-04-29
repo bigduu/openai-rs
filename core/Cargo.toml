@@ -16,3 +16,4 @@ bytes = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true } # Updated to use workspace
 derive_builder = "0.20.2"
+futures = "0.3"

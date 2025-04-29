@@ -9,13 +9,14 @@ use bytes::Bytes;
 use futures_util::{Stream, StreamExt};
 use reqwest::{self, Client};
 use std::pin::Pin;
+use std::sync::Arc;
 
 pub struct StreamForwarder {
-    client_provider: Box<dyn ClientProvider>,
+    client_provider: Arc<dyn ClientProvider>,
 }
 
 impl StreamForwarder {
-    pub fn new(client_provider: Box<dyn ClientProvider>) -> Self {
+    pub fn new(client_provider: Arc<dyn ClientProvider>) -> Self {
         StreamForwarder { client_provider }
     }
 
