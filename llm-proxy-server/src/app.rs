@@ -9,7 +9,7 @@ use actix_web::{
 use anyhow::Result;
 use bytes::BytesMut;
 use futures_util::StreamExt;
-use llm_proxy_core::{LLMRequest, Pipeline};
+use llm_proxy_core::Pipeline;
 use llm_proxy_openai::ChatCompletionRequest;
 use tracing::{error, info};
 

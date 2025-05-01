@@ -204,21 +204,13 @@ impl LLMClient<ChatCompletionRequest> for OpenAIClient {
             .await
             .map_err(|e| Error::LLMError(format!("Failed to get API URL: {e}")))?;
 
-        // 2. Parse request into OpenAI format
-        let request_bytes = serde_json::to_vec(&request)
-            .map_err(|e| Error::ParseError(format!("Failed to serialize request: {e}")))?;
-        let request = self
-            .request_parser
-            .parse(Bytes::from(request_bytes))
-            .await?;
-
-        // 3. Create response channel
+        // 2. Create response channel
         let (tx, rx) = mpsc::channel(100);
 
-        // 4. Send request and handle response
+        // 3. Send request and handle response
         let response = self.send_request(&request, client, token, url).await?;
 
-        // 5. Handle response based on streaming flag
+        // 4. Handle response based on streaming flag
         let client = self.clone();
         let stream = request.stream;
         tokio::spawn(async move {
