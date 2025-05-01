@@ -1,22 +1,64 @@
 use std::sync::Arc;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::{
-    traits::{LLMClient, ProcessorChain, RequestParser},
+    traits::{LLMClient, LLMRequest, ProcessorChain, RequestParser},
     types::{ResponseStream, Result},
-    LLMRequest,
 };
 
 /// Pipeline for handling LLM proxy requests.
 ///
-/// The pipeline coordinates the different stages of request handling:
-/// 1. Request parsing
-/// 2. Request processing through the processor chain
-/// 3. Forwarding to the LLM service
+/// The pipeline is the central component of the LLM proxy system. It coordinates
+/// the flow of requests through three main stages:
 ///
-/// All components are trait objects, allowing for flexible configuration
+/// 1. **Request Parsing**: Converting raw request bytes into structured requests
+/// 2. **Request Processing**: Applying transformations and enhancements
+/// 3. **LLM Execution**: Sending requests to the LLM service
+///
+/// Each stage is handled by trait objects, allowing for flexible configuration
 /// and different implementations for different LLM services.
+///
+/// # Architecture
+///
+/// ```text
+/// Raw Request → [RequestParser] → [ProcessorChain] → [LLMClient] → Response Stream
+///                     ↓                  ↓                ↓
+///              Structured Request → Modified Request → LLM Service
+/// ```
+///
+/// # Example Usage
+///
+/// ```rust
+/// use std::sync::Arc;
+/// use llm_proxy_core::{Pipeline, RequestParser, ProcessorChain, LLMClient};
+///
+/// // Create components
+/// let parser = Arc::new(MyRequestParser::new());
+/// let processors = vec![
+///     Arc::new(SystemMessageProcessor::new()),
+///     Arc::new(TokenLimitProcessor::new()),
+/// ];
+/// let processor_chain = Arc::new(ProcessorChain::new(processors));
+/// let llm_client = Arc::new(MyLLMClient::new());
+///
+/// // Create pipeline
+/// let pipeline = Pipeline::new(parser, processor_chain, llm_client);
+///
+/// // Execute request
+/// let response_stream = pipeline.execute(raw_request).await?;
+/// ```
+///
+/// # Implementing Custom Components
+///
+/// To create a custom pipeline implementation, you need to implement
+/// the following traits:
+///
+/// 1. `RequestParser`: Parse raw requests into your request type
+/// 2. `Processor`: Define request transformations (optional)
+/// 3. `LLMClient`: Handle communication with your LLM service
+///
+/// See the documentation for each trait for implementation details.
 #[derive(Clone)]
 pub struct Pipeline<T: LLMRequest> {
     parser: Arc<dyn RequestParser<T>>,
@@ -29,9 +71,26 @@ impl<T: LLMRequest> Pipeline<T> {
     /// Create a new pipeline with the given components.
     ///
     /// # Arguments
-    /// * `parser` - Component for parsing raw request bytes
-    /// * `processor_chain` - Chain of processors for modifying requests
+    ///
+    /// * `parser` - Component for parsing raw request bytes into structured requests
+    /// * `processor_chain` - Chain of processors for transforming requests
     /// * `llm_client` - Client for communicating with the LLM service
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use std::sync::Arc;
+    ///
+    /// // Create pipeline components
+    /// let parser = Arc::new(OpenAIRequestParser::new());
+    /// let processor_chain = Arc::new(ProcessorChain::new(vec![
+    ///     Arc::new(TokenLimitProcessor::new(2000)),
+    /// ]));
+    /// let llm_client = Arc::new(OpenAIClient::new(/* ... */));
+    ///
+    /// // Create pipeline
+    /// let pipeline = Pipeline::new(parser, processor_chain, llm_client);
+    /// ```
     pub fn new(
         parser: Arc<dyn RequestParser<T>>,
         processor_chain: Arc<ProcessorChain<T>>,
@@ -47,11 +106,51 @@ impl<T: LLMRequest> Pipeline<T> {
 
     /// Execute the pipeline on a request.
     ///
+    /// This method orchestrates the flow of a request through the pipeline:
+    ///
+    /// 1. The raw request bytes are parsed into a structured request
+    /// 2. The request is processed through the processor chain
+    /// 3. The processed request is sent to the LLM service
+    ///
+    /// The entire process is traced with unique IDs and comprehensive logging
+    /// at each stage.
+    ///
     /// # Arguments
-    /// * `request_body` - Raw bytes of the request
+    ///
+    /// * `request_body` - Raw bytes of the incoming request
     ///
     /// # Returns
-    /// A channel receiver that will receive the raw response bytes from the LLM service
+    ///
+    /// A channel receiver (`ResponseStream`) that will receive response chunks
+    /// from the LLM service. The response format depends on the specific
+    /// LLM service implementation.
+    ///
+    /// # Error Handling
+    ///
+    /// This method will return an error if any stage fails:
+    /// - Request parsing fails
+    /// - A processor returns an error
+    /// - The LLM client encounters an error
+    ///
+    /// All errors are logged with the trace ID for debugging.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use bytes::Bytes;
+    ///
+    /// // Execute request
+    /// let raw_request = Bytes::from(r#"{"messages": [...]}"#);
+    /// let response_stream = pipeline.execute(raw_request).await?;
+    ///
+    /// // Process response chunks
+    /// while let Some(chunk) = response_stream.recv().await {
+    ///     match chunk {
+    ///         Ok(data) => println!("Received: {:?}", data),
+    ///         Err(e) => eprintln!("Error: {}", e),
+    ///     }
+    /// }
+    /// ```
     pub async fn execute(&self, request_body: bytes::Bytes) -> Result<ResponseStream> {
         info!(
             trace_id = %self.trace_id,
@@ -96,8 +195,10 @@ impl<T: LLMRequest> Pipeline<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
-    use crate::{Error, LLMRequest, Processor};
+    use crate::{LLMRequest, Processor};
     use async_trait::async_trait;
     use bytes::Bytes;
     use serde_json::Value;
@@ -112,23 +213,29 @@ mod tests {
         }
 
         fn model(&self) -> Result<String> {
-            todo!()
+            Ok("test_model".to_string())
         }
 
         fn stream(&self) -> Result<bool> {
-            todo!()
+            Ok(true)
         }
 
         fn max_tokens(&self) -> Option<u32> {
-            todo!()
+            Some(1000)
         }
 
-        fn to_map(&self) -> Result<std::collections::HashMap<String, Value>> {
-            todo!()
+        fn to_map(&self) -> Result<HashMap<String, Value>> {
+            Ok(serde_json::json!({"test": "request"})
+                .as_object()
+                .unwrap()
+                .clone()
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect())
         }
 
         fn to_value(&self) -> Result<Value> {
-            todo!()
+            Ok(serde_json::json!({"test": "request"}))
         }
     }
 

@@ -1,36 +1,93 @@
 # LLM Proxy
 
-A flexible and configurable proxy server for Large Language Model APIs, with support for request processing pipelines and multiple LLM providers.
+A flexible and configurable proxy server for Large Language Model APIs, with support for request processing pipelines and multiple LLM providers. This proxy server acts as a middleware between your applications and various LLM providers, offering enhanced functionality, request processing, and unified interface.
 
 ## Features
 
-- 🔄 Configurable request routing and processing pipelines
-- 🌊 Support for both streaming and non-streaming responses
-- 🔌 Extensible provider system (currently supporting OpenAI)
-- 🔧 Custom request processors for enhancing or modifying requests
-- 🔐 Secure token management through environment variables
-- 📝 Comprehensive logging and error handling
-- 🛠️ Easy configuration through TOML files
+- 🔄 **Configurable Request Routing**
+  - Route requests to different LLM providers based on path patterns
+  - Support for multiple LLM backends in a single server instance
+  - Flexible configuration through TOML files
+
+- 🌊 **Streaming Support**
+  - Full support for streaming responses
+  - Configurable per-route streaming settings
+  - Efficient handling of both streaming and non-streaming requests
+
+- 🔌 **Extensible Provider System**
+  - Currently supports OpenAI's Chat API
+  - Modular design for easy addition of new providers
+  - Abstract interfaces for consistent provider integration
+
+- 🔧 **Request Processing Pipeline**
+  - Customizable request processors
+  - Chain multiple processors for complex transformations
+  - Built-in support for request enhancement and modification
+
+- 🔐 **Security Features**
+  - Secure token management through environment variables
+  - CORS configuration support
+  - Request validation and sanitization
+
+- 📝 **Observability**
+  - Comprehensive logging with tracing support
+  - Detailed error handling and reporting
+  - Request/response monitoring capabilities
+
+## Architecture
+
+The project is structured into three main crates:
+
+### llm-proxy-core
+
+Core functionality and traits:
+
+- `Pipeline`: Generic request processing pipeline
+- `Processor`: Trait for request processors
+- `Provider`: Trait for LLM providers
+- Common types and error handling
+
+### llm-proxy-openai
+
+OpenAI-specific implementation:
+
+- OpenAI Chat API integration
+- Streaming response handling
+- Request/response type definitions
+- API client implementation
+
+### llm-proxy-server
+
+HTTP server and configuration:
+
+- Actix-web based HTTP server
+- TOML configuration parsing
+- Route management
+- Pipeline orchestration
 
 ## Quick Start
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/yourusername/llm-proxy.git
    cd llm-proxy
    ```
 
 2. Copy the example configuration:
+
    ```bash
    cp llm-proxy-server/config.example.toml config.toml
    ```
 
 3. Set your OpenAI API key:
+
    ```bash
    export OPENAI_API_KEY=your-api-key-here
    ```
 
 4. Run the server:
+
    ```bash
    cargo run -p llm-proxy-server
    ```
@@ -39,64 +96,104 @@ The server will start at `http://127.0.0.1:3000` by default.
 
 ## Configuration
 
-The proxy server is configured through a TOML file. See `llm-proxy-server/config.example.toml` for a complete example with comments.
+The proxy server is configured through a TOML file. Here's a detailed explanation of each section:
 
-### Key Configuration Sections:
+### LLM Provider Configuration
 
-- `[llm.<name>]`: Configure LLM backend services
-- `[processor.<name>]`: Define request processors
-- `[[route]]`: Set up request routing rules
-- `[server]`: Configure server settings
-
-Example configuration:
 ```toml
 [llm.openai_chat]
-provider = "openai"
-type = "chat"
-base_url = "https://api.openai.com/v1"
-token_env = "OPENAI_API_KEY"
-supports_streaming = true
-
-[processor.enhance_query]
-type = "openai_chat"
-config_value = "gpt-4"
-additional_config = { system_prompt = "Enhance this query" }
-
-[[route]]
-path_prefix = "/v1/chat/completions"
-target_llm = "openai_chat"
-processors = ["enhance_query"]
-allow_streaming = true
-allow_non_streaming = true
+provider = "openai"      # Provider type
+type = "chat"           # API type
+base_url = "https://api.openai.com/v1"  # API endpoint
+token_env = "OPENAI_API_KEY"  # Environment variable for API key
+supports_streaming = true  # Whether streaming is supported
 ```
 
-## Project Structure
+### Request Processor Configuration
 
-- `llm-proxy-core`: Core traits and types
-- `llm-proxy-openai`: OpenAI-specific implementations
-- `llm-proxy-server`: HTTP server and configuration
+```toml
+[processor.enhance_query]
+type = "openai_chat"    # Processor type
+config_value = "gpt-4"  # Model to use
+additional_config = { 
+    system_prompt = "Enhance this query"  # Custom configuration
+}
+```
+
+### Route Configuration
+
+```toml
+[[route]]
+path_prefix = "/v1/chat/completions"  # URL path to match
+target_llm = "openai_chat"           # LLM provider to use
+processors = ["enhance_query"]        # Processors to apply
+allow_streaming = true               # Allow streaming responses
+allow_non_streaming = true          # Allow non-streaming responses
+```
+
+### Server Configuration
+
+```toml
+[server]
+host = "127.0.0.1"
+port = 3000
+cors_allowed_origins = ["*"]  # CORS settings
+```
+
+## Development
+
+### Building
+
+```bash
+# Build all crates
+cargo build
+
+# Build specific crate
+cargo build -p llm-proxy-server
+```
+
+### Testing
+
+```bash
+# Run all tests
+cargo test
+
+# Run tests for specific crate
+cargo test -p llm-proxy-core
+```
+
+### Logging
+
+```bash
+# Run with debug logging
+RUST_LOG=debug cargo run -p llm-proxy-server
+
+# Run with trace logging
+RUST_LOG=trace cargo run -p llm-proxy-server
+```
 
 ## Adding New Providers
 
 1. Create a new crate (e.g., `llm-proxy-anthropic`)
-2. Implement the core traits from `llm-proxy-core`
-3. Add a feature flag to `llm-proxy-server`
+2. Implement the core traits from `llm-proxy-core`:
+   - `Provider`: Main trait for LLM integration
+   - `Processor`: For custom request processing
+3. Add configuration support in `llm-proxy-server`
+4. Update the server's provider registry
 
-## Development
+Example provider implementation:
 
-Build the project:
-```bash
-cargo build
-```
+```rust
+use llm_proxy_core::{Provider, Result};
 
-Run tests:
-```bash
-cargo test
-```
+pub struct NewProvider;
 
-Run with logging:
-```bash
-RUST_LOG=debug cargo run -p llm-proxy-server
+#[async_trait::async_trait]
+impl Provider for NewProvider {
+    async fn process_request(&self, request: Request) -> Result<Response> {
+        // Implementation here
+    }
+}
 ```
 
 ## Contributing
@@ -105,6 +202,13 @@ RUST_LOG=debug cargo run -p llm-proxy-server
 2. Create a feature branch
 3. Commit your changes
 4. Create a pull request
+
+Please ensure your code:
+
+- Passes all tests
+- Includes appropriate documentation
+- Follows the project's code style
+- Has no clippy warnings
 
 ## License
 

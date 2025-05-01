@@ -1,8 +1,61 @@
-//! OpenAI-specific implementations for the LLM proxy.
+//! # LLM Proxy OpenAI
 //!
-//! This crate provides OpenAI-specific implementations of the core traits defined in llm-proxy-core.
-//! It handles communication with OpenAI's API endpoints and provides appropriate request/response
-//! handling for their specific formats.
+//! This crate provides OpenAI-specific implementations for the LLM Proxy system.
+//! It implements the core traits defined in `llm-proxy-core` for OpenAI's Chat API.
+//!
+//! ## Features
+//!
+//! - Full support for OpenAI's Chat Completions API
+//! - Streaming and non-streaming response handling
+//! - Efficient request processing and response parsing
+//! - Automatic token management and API key handling
+//! - Configurable base URL for API endpoints
+//!
+//! ## Components
+//!
+//! ### Client
+//! The [`client`] module provides a high-level client for interacting with OpenAI's API.
+//! It handles authentication, request formatting, and response parsing.
+//!
+//! ### Providers
+//! The [`providers`] module implements the `Provider` trait from `llm-proxy-core`
+//! for OpenAI's services. This includes handling both streaming and non-streaming
+//! chat completions.
+//!
+//! ### Types
+//! The [`types`] module defines OpenAI-specific types for requests and responses,
+//! including chat messages, model parameters, and API responses.
+//!
+//! ## Example Usage
+//!
+//! ```rust,no_run
+//! use llm_proxy_openai::{create_chat_pipeline, ChatCompletionRequest};
+//!
+//! // Create a pipeline for OpenAI chat completions
+//! let pipeline = create_chat_pipeline(
+//!     processors,
+//!     Some("OPENAI_API_KEY"),
+//!     Some("https://api.openai.com/v1"),
+//!     Some(route_config)
+//! );
+//!
+//! // Process a chat completion request
+//! let response = pipeline.execute(request).await?;
+//! ```
+//!
+//! ## Configuration
+//!
+//! The OpenAI implementation can be configured through environment variables
+//! and the route configuration:
+//!
+//! ```toml
+//! [llm.openai_chat]
+//! provider = "openai"
+//! type = "chat"
+//! base_url = "https://api.openai.com/v1"
+//! token_env = "OPENAI_API_KEY"
+//! supports_streaming = true
+//! ```
 
 pub mod client;
 pub mod providers;

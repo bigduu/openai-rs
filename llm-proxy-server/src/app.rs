@@ -6,18 +6,18 @@ use actix_web::{
     web::{self},
     App, HttpRequest, HttpResponse, HttpServer,
 };
-use anyhow::Result;
+use anyhow::{Error, Result};
 use bytes::BytesMut;
 use futures_util::StreamExt;
 use llm_proxy_core::Pipeline;
 use llm_proxy_openai::ChatCompletionRequest;
 use tracing::{error, info};
 
-use crate::config::{Config, RouteConfig};
+use crate::config;
 
 /// Application state shared across request handlers
 pub struct AppState {
-    config: Arc<Config>,
+    config: Arc<config::Config>,
     pipelines: Arc<tokio::sync::RwLock<PipelineRegistry>>,
 }
 
@@ -37,13 +37,13 @@ impl PipelineRegistry {
         self.pipelines.get(route_id).cloned()
     }
 
-    pub fn insert(&mut self, route_id: String, pipeline: Pipeline<ChatCompletionRequest>) {
-        self.pipelines.insert(route_id, Arc::new(pipeline));
+    pub fn insert(&mut self, route_id: String, pipeline: Arc<Pipeline<ChatCompletionRequest>>) {
+        self.pipelines.insert(route_id, pipeline);
     }
 }
 
 /// Configure and start the HTTP server
-pub async fn run_server(config: Config) -> Result<()> {
+pub async fn run_server(config: config::Config) -> Result<()> {
     let config = Arc::new(config);
     let pipelines = Arc::new(tokio::sync::RwLock::new(PipelineRegistry::new()));
     let server_config = config.server.clone();
@@ -149,7 +149,7 @@ async fn read_request_body(mut payload: web::Payload) -> Result<BytesMut> {
 /// Get or create a pipeline for the given route
 async fn get_pipeline_for_route(
     state: &AppState,
-    route: &RouteConfig,
+    route: &config::RouteConfig,
 ) -> Result<Arc<Pipeline<ChatCompletionRequest>>> {
     // Check if we already have a pipeline for this route
     if let Some(pipeline) = state.pipelines.read().await.get(&route.path_prefix) {
@@ -160,24 +160,7 @@ async fn get_pipeline_for_route(
     #[cfg(feature = "openai")]
     if let Some(llm_config) = state.config.llm.get(&route.target_llm) {
         if llm_config.provider == "openai" {
-            // Create OpenAI pipeline
-            let processors = Vec::new(); // TODO: Create processors from config
-
-            // Convert server RouteConfig to core RouteConfig
-            let core_route = llm_proxy_core::types::RouteConfig {
-                path_prefix: route.path_prefix.clone(),
-                target_llm: route.target_llm.clone(),
-                processors: route.processors.clone(),
-                allow_streaming: route.allow_streaming,
-                allow_non_streaming: route.allow_non_streaming,
-            };
-
-            let pipeline = llm_proxy_openai::create_chat_pipeline(
-                processors,
-                Some(&llm_config.token_env),
-                Some(&llm_config.base_url),
-                Some(core_route),
-            );
+            let pipeline = create_openai_pipeline(llm_config, route).await?;
 
             // Store it in the registry
             state
@@ -186,7 +169,7 @@ async fn get_pipeline_for_route(
                 .await
                 .insert(route.path_prefix.clone(), pipeline.clone());
 
-            return Ok(Arc::new(pipeline));
+            return Ok(pipeline);
         }
     }
 
@@ -194,4 +177,31 @@ async fn get_pipeline_for_route(
         "No pipeline implementation available for provider: {}",
         route.target_llm
     ))
+}
+
+#[cfg(feature = "openai")]
+async fn create_openai_pipeline(
+    llm_config: &config::LLMConfig,
+    route: &config::RouteConfig,
+) -> Result<Arc<Pipeline<ChatCompletionRequest>>, Error> {
+    // Create OpenAI pipeline
+    let processors = Vec::new(); // TODO: Create processors from config
+
+    // Convert server RouteConfig to core RouteConfig
+    let core_route = llm_proxy_core::types::RouteConfig {
+        path_prefix: route.path_prefix.clone(),
+        target_llm: route.target_llm.clone(),
+        processors: route.processors.clone(),
+        allow_streaming: route.allow_streaming,
+        allow_non_streaming: route.allow_non_streaming,
+    };
+
+    let pipeline = llm_proxy_openai::create_chat_pipeline(
+        processors,
+        Some(&llm_config.token_env),
+        Some(&llm_config.base_url),
+        Some(core_route),
+    );
+
+    Ok(Arc::new(pipeline))
 }
