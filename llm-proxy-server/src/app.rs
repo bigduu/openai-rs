@@ -120,11 +120,8 @@ async fn handle_request(
         }
     };
 
-    // Determine if we should stream based on request and route config
-    let stream = should_stream(&body, route);
-
     // Execute pipeline
-    let rx = match pipeline.execute(body.freeze(), stream).await {
+    let rx = match pipeline.execute(body.freeze()).await {
         Ok(rx) => rx,
         Err(e) => {
             error!(error = %e, "Pipeline execution failed");
@@ -135,11 +132,7 @@ async fn handle_request(
     // Stream response back to client
     let receiver_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
     HttpResponse::Ok()
-        .content_type(if stream {
-            "text/event-stream"
-        } else {
-            "application/json"
-        })
+        .content_type("application/json")
         .streaming(receiver_stream)
 }
 
@@ -165,10 +158,21 @@ async fn get_pipeline_for_route(state: &AppState, route: &RouteConfig) -> Result
         if llm_config.provider == "openai" {
             // Create OpenAI pipeline
             let processors = Vec::new(); // TODO: Create processors from config
+
+            // Convert server RouteConfig to core RouteConfig
+            let core_route = llm_proxy_core::types::RouteConfig {
+                path_prefix: route.path_prefix.clone(),
+                target_llm: route.target_llm.clone(),
+                processors: route.processors.clone(),
+                allow_streaming: route.allow_streaming,
+                allow_non_streaming: route.allow_non_streaming,
+            };
+
             let pipeline = llm_proxy_openai::create_chat_pipeline(
                 processors,
                 Some(&llm_config.token_env),
                 Some(&llm_config.base_url),
+                Some(core_route),
             );
 
             // Store it in the registry
@@ -186,15 +190,4 @@ async fn get_pipeline_for_route(state: &AppState, route: &RouteConfig) -> Result
         "No pipeline implementation available for provider: {}",
         route.target_llm
     ))
-}
-
-/// Determine if we should use streaming based on request body and route config
-fn should_stream(body: &[u8], route: &RouteConfig) -> bool {
-    // Try to parse the stream flag from the request
-    if let Ok(json) = serde_json::from_slice::<serde_json::Value>(body) {
-        if let Some(stream) = json.get("stream").and_then(|v| v.as_bool()) {
-            return stream && route.allow_streaming;
-        }
-    }
-    false
 }

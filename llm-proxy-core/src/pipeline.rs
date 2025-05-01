@@ -48,19 +48,13 @@ impl Pipeline {
     ///
     /// # Arguments
     /// * `request_body` - Raw bytes of the request
-    /// * `stream` - Whether to request a streaming response (determined by server based on route config)
     ///
     /// # Returns
     /// A channel receiver that will receive the raw response bytes from the LLM service
-    pub async fn execute(
-        &self,
-        request_body: bytes::Bytes,
-        stream: bool,
-    ) -> Result<ResponseStream> {
+    pub async fn execute(&self, request_body: bytes::Bytes) -> Result<ResponseStream> {
         info!(
             trace_id = %self.trace_id,
             request_size = request_body.len(),
-            stream = stream,
             "Starting pipeline execution"
         );
 
@@ -72,14 +66,6 @@ impl Pipeline {
             "Request parsed"
         );
 
-        // Warn if streaming was requested but not allowed by route config
-        if stream_requested && !stream {
-            warn!(
-                trace_id = %self.trace_id,
-                "Streaming was requested but is not allowed by route configuration"
-            );
-        }
-
         // 2. Process Request
         let processed_request = self.processor_chain.execute(parsed_request).await?;
         debug!(
@@ -88,7 +74,11 @@ impl Pipeline {
         );
 
         // 3. Forward to LLM
-        let response_stream = match self.llm_client.execute(processed_request, stream).await {
+        let response_stream = match self
+            .llm_client
+            .execute(processed_request, stream_requested)
+            .await
+        {
             Ok(stream) => stream,
             Err(e) => {
                 error!(
@@ -154,7 +144,7 @@ mod tests {
             Arc::new(MockLLMClient),
         );
 
-        let result = pipeline.execute(Bytes::from("test"), true).await;
+        let result = pipeline.execute(Bytes::from("test")).await;
         assert!(result.is_ok());
 
         let mut rx = result.unwrap();
