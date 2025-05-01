@@ -1,5 +1,6 @@
 use actix_web::{App, HttpResponse, HttpServer, Responder, get, post, web};
 use core::{
+    StaticUrlProvider,
     context::{StreamingProxyContext, StreamingProxyContextBuilder},
     token_provider::StaticTokenProvider,
 };
@@ -10,7 +11,7 @@ async fn hello() -> impl Responder {
     HttpResponse::Ok().body("Hello from Rust Intelligent Streaming Proxy Server!")
 }
 
-#[post("/chat")]
+#[post("/v1/chat/completions")]
 async fn chat_handler(
     req_body: web::Bytes,
     context: web::Data<StreamingProxyContext>,
@@ -35,14 +36,13 @@ async fn main() -> std::io::Result<()> {
     println!("Starting server on http://127.0.0.1:8080");
     println!("Reading OPENAI_API_KEY and OPENAI_MODEL from environment variables.");
 
-    // Create context with custom token provider
-    let api_key = env::var("OPENAI_API_KEY").unwrap_or_else(|_| {
-        eprintln!("WARN: OPENAI_API_KEY not set, using placeholder.");
-        "YOUR_STATIC_OPENAI_KEY".to_string()
-    });
-
     let context = StreamingProxyContextBuilder::new()
-        .with_token_provider(Arc::new(StaticTokenProvider::new(api_key)))
+        .with_url_provider(Arc::new(StaticUrlProvider::new(
+            "https://api.siliconflow.cn/v1/chat/completions".to_string(),
+        )))
+        .with_token_provider(Arc::new(StaticTokenProvider::new(
+            "sk-wezkvfciyxaadlxzygdfulbayklquysmyzrefpncaugnkhbf".to_string(),
+        )))
         .build();
 
     HttpServer::new(move || {
