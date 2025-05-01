@@ -34,6 +34,12 @@ A flexible and configurable proxy server for Large Language Model APIs, with sup
   - Detailed error handling and reporting
   - Request/response monitoring capabilities
 
+## Documentation
+
+- **[Architecture Overview](./docs/ARCHITECTURE.md)**: Detailed explanation of the system architecture, components, and data flows.
+- **[Implementing Custom Providers](./docs/IMPLEMENTING_PROVIDERS.md)**: Step-by-step guide on how to add support for new LLM providers.
+- **[Implementation Examples](./docs/examples.md)**: Practical code examples for various system components and features.
+
 ## Architecture
 
 The project is structured into three main crates:
@@ -42,14 +48,33 @@ The project is structured into three main crates:
 
 Core functionality and traits:
 
+```text
+┌─────────────┐     ┌──────────────┐     ┌────────────┐
+│   Request   │ ──> │  Processing  │ ──> │    LLM     │
+│   Parser    │     │   Pipeline   │     │   Client   │
+└─────────────┘     └──────────────┘     └────────────┘
+```
+
+Key Components:
+
 - `Pipeline`: Generic request processing pipeline
 - `Processor`: Trait for request processors
-- `Provider`: Trait for LLM providers
+- `LLMClient`: Trait for LLM providers
+- `RequestParser`: Trait for parsing raw requests
 - Common types and error handling
 
 ### llm-proxy-openai
 
 OpenAI-specific implementation:
+
+```text
+┌──────────────┐     ┌───────────────┐     ┌────────────┐
+│  OpenAI API  │ <── │  OpenAI Chat  │ <── │  Request   │
+│   Client     │     │    Client     │     │  Pipeline  │
+└──────────────┘     └───────────────┘     └────────────┘
+```
+
+Features:
 
 - OpenAI Chat API integration
 - Streaming response handling
@@ -59,6 +84,15 @@ OpenAI-specific implementation:
 ### llm-proxy-server
 
 HTTP server and configuration:
+
+```text
+┌──────────┐    ┌─────────┐    ┌──────────┐
+│  HTTP    │ -> │  Route  │ -> │ Provider  │
+│ Server   │    │ Handler │    │ Pipeline  │
+└──────────┘    └─────────┘    └──────────┘
+```
+
+Components:
 
 - Actix-web based HTTP server
 - TOML configuration parsing
@@ -172,29 +206,9 @@ RUST_LOG=debug cargo run -p llm-proxy-server
 RUST_LOG=trace cargo run -p llm-proxy-server
 ```
 
-## Adding New Providers
+## Implementing Custom Components
 
-1. Create a new crate (e.g., `llm-proxy-anthropic`)
-2. Implement the core traits from `llm-proxy-core`:
-   - `Provider`: Main trait for LLM integration
-   - `Processor`: For custom request processing
-3. Add configuration support in `llm-proxy-server`
-4. Update the server's provider registry
-
-Example provider implementation:
-
-```rust
-use llm_proxy_core::{Provider, Result};
-
-pub struct NewProvider;
-
-#[async_trait::async_trait]
-impl Provider for NewProvider {
-    async fn process_request(&self, request: Request) -> Result<Response> {
-        // Implementation here
-    }
-}
-```
+See the [Implementing Custom Providers](./docs/IMPLEMENTING_PROVIDERS.md) guide for detailed instructions.
 
 ## Contributing
 

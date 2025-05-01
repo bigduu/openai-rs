@@ -4,14 +4,14 @@ import sys
 def chat_with_server(message):
     # 配置OpenAI客户端
     client = openai.OpenAI(
-        base_url="http://127.0.0.1:8080/v1",  # 指向本地代理服务器
-        api_key="sk-wezkvfciyxaadlxzygdfulbayklquysmyzrefpncaugnkhbf"  # 使用服务器中配置的密钥
+        base_url="http://127.0.0.1:8080/v1",  
+        api_key="sk-wezkvfciyxaadlxzygdfulbayklquysmyzrefpncaugnkhbf"  
     )
     
     try:
         # 创建聊天完成请求
         stream = client.chat.completions.create(
-            model="Pro/deepseek-ai/DeepSeek-V3",  # 模型名称，实际会被服务器覆盖
+            model="Pro/deepseek-ai/DeepSeek-V3",  
             messages=[
                 {"role": "user", "content": message}
             ],

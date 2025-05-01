@@ -4,7 +4,7 @@ mod config;
 use tracing::info;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{fmt, fmt::format::FmtSpan, EnvFilter, Registry};
+use tracing_subscriber::{fmt, fmt::format::FmtSpan, EnvFilter};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

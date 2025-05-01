@@ -15,8 +15,13 @@ use crate::types::{ResponseStream, Result};
 /// # Example
 ///
 /// ```rust
-/// use serde_json::Value;
-/// use std::collections::HashMap;
+/// # use serde_json::Value;
+/// # use std::collections::HashMap;
+/// # use anyhow::Result;
+/// #
+/// struct Message {
+///     content: String,
+/// }
 ///
 /// struct MyLLMRequest {
 ///     messages: Vec<Message>,
@@ -24,6 +29,7 @@ use crate::types::{ResponseStream, Result};
 ///     stream: bool,
 /// }
 ///
+/// # use llm_proxy_core::LLMRequest;
 /// impl LLMRequest for MyLLMRequest {
 ///     fn messages(&self) -> Result<Value> {
 ///         serde_json::to_value(&self.messages).map_err(Into::into)
@@ -37,7 +43,17 @@ use crate::types::{ResponseStream, Result};
 ///         Ok(self.stream)
 ///     }
 ///     
-///     // ... implement other methods
+///     fn max_tokens(&self) -> Option<u32> {
+///         None
+///     }
+///     
+///     fn to_map(&self) -> Result<HashMap<String, Value>> {
+///         Ok(HashMap::new())
+///     }
+///     
+///     fn to_value(&self) -> Result<Value> {
+///         Ok(Value::Null)
+///     }
 /// }
 /// ```
 pub trait LLMRequest: Send + Sync {
@@ -83,8 +99,15 @@ pub trait LLMResponse {
 /// # Example
 ///
 /// ```rust
-/// use bytes::Bytes;
-/// use async_trait::async_trait;
+/// # use bytes::Bytes;
+/// # use async_trait::async_trait;
+/// # use anyhow::Result;
+/// # use llm_proxy_core::RequestParser;
+/// #
+/// # struct MyLLMRequest;
+/// # impl MyLLMRequest {
+/// #     fn new() -> Self { Self }
+/// # }
 ///
 /// struct MyRequestParser;
 ///
@@ -92,8 +115,7 @@ pub trait LLMResponse {
 /// impl RequestParser<MyLLMRequest> for MyRequestParser {
 ///     async fn parse(&self, body: Bytes) -> Result<MyLLMRequest> {
 ///         // Parse the bytes into your request type
-///         let request: MyLLMRequest = serde_json::from_slice(&body)?;
-///         Ok(request)
+///         Ok(MyLLMRequest::new())
 ///     }
 /// }
 /// ```
@@ -115,10 +137,23 @@ pub trait RequestParser<T: LLMRequest>: Send + Sync {
 /// # Example
 ///
 /// ```rust
-/// use async_trait::async_trait;
+/// # use async_trait::async_trait;
+/// # use anyhow::Result;
+/// # use llm_proxy_core::Processor;
+/// #
+/// # struct MyLLMRequest;
+/// # impl MyLLMRequest {
+/// #     fn add_system_message(&mut self, _msg: &str) -> Result<()> { Ok(()) }
+/// # }
 ///
 /// struct SystemMessageProcessor {
 ///     system_message: String,
+/// }
+///
+/// impl SystemMessageProcessor {
+///     fn new(msg: &str) -> Self {
+///         Self { system_message: msg.to_string() }
+///     }
 /// }
 ///
 /// #[async_trait]
@@ -151,15 +186,35 @@ pub trait Processor<T: LLMRequest>: Send + Sync {
 /// # Example
 ///
 /// ```rust
-/// use std::sync::Arc;
-///
+/// # use std::sync::Arc;
+/// # use anyhow::Result;
+/// # use llm_proxy_core::ProcessorChain;
+/// #
+/// # struct MyLLMRequest;
+/// # struct SystemMessageProcessor;
+/// # impl SystemMessageProcessor {
+/// #     fn new(_: &str) -> Self { Self }
+/// # }
+/// # struct TokenLimitProcessor;
+/// # impl TokenLimitProcessor {
+/// #     fn new(_: u32) -> Self { Self }
+/// # }
+/// # struct LoggingProcessor;
+/// # impl LoggingProcessor {
+/// #     fn new() -> Self { Self }
+/// # }
+/// #
+/// # async fn example() -> Result<()> {
 /// let chain = ProcessorChain::new(vec![
 ///     Arc::new(SystemMessageProcessor::new("Be helpful")),
 ///     Arc::new(TokenLimitProcessor::new(2000)),
 ///     Arc::new(LoggingProcessor::new()),
 /// ]);
 ///
+/// let request = MyLLMRequest;
 /// let processed_request = chain.execute(request).await?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct ProcessorChain<T: LLMRequest> {
     processors: Vec<Arc<dyn Processor<T>>>,
@@ -197,7 +252,11 @@ impl<T: LLMRequest> ProcessorChain<T> {
 /// # Example
 ///
 /// ```rust
-/// use async_trait::async_trait;
+/// # use async_trait::async_trait;
+/// # use anyhow::Result;
+/// # use llm_proxy_core::{LLMClient, ResponseStream};
+/// #
+/// # struct OpenAIRequest;
 ///
 /// struct OpenAIClient {
 ///     api_key: String,
@@ -208,7 +267,7 @@ impl<T: LLMRequest> ProcessorChain<T> {
 /// impl LLMClient<OpenAIRequest> for OpenAIClient {
 ///     async fn execute(&self, request: OpenAIRequest) -> Result<ResponseStream> {
 ///         // Send request to OpenAI API and return response stream
-///         // ...
+///         # todo!()
 ///     }
 /// }
 /// ```
@@ -232,7 +291,9 @@ pub trait LLMClient<T: LLMRequest>: Send + Sync {
 /// # Example
 ///
 /// ```rust
-/// use async_trait::async_trait;
+/// # use async_trait::async_trait;
+/// # use anyhow::Result;
+/// # use llm_proxy_core::TokenProvider;
 ///
 /// struct EnvTokenProvider {
 ///     env_var: String,
@@ -261,7 +322,9 @@ pub trait TokenProvider: Send + Sync {
 /// # Example
 ///
 /// ```rust
-/// use async_trait::async_trait;
+/// # use async_trait::async_trait;
+/// # use anyhow::Result;
+/// # use llm_proxy_core::UrlProvider;
 ///
 /// struct ConfigUrlProvider {
 ///     base_url: String,
@@ -288,7 +351,10 @@ pub trait UrlProvider: Send + Sync {
 /// # Example
 ///
 /// ```rust
-/// use async_trait::async_trait;
+/// # use async_trait::async_trait;
+/// # use anyhow::Result;
+/// # use std::time::Duration;
+/// # use llm_proxy_core::ClientProvider;
 ///
 /// struct CustomClientProvider {
 ///     timeout: Duration,
