@@ -9,8 +9,10 @@ use crate::{
 };
 use anyhow::Result;
 use bytes::Bytes;
-use futures::Stream;
-use std::{pin::Pin, sync::Arc};
+use std::sync::Arc;
+use tokio::sync::mpsc;
+use tracing::{Instrument, Span, error, info};
+use uuid::Uuid;
 
 /// A context that holds all necessary components for processing streaming proxy requests.
 /// This is the main entry point for handling OpenAI API requests with streaming support.
@@ -40,67 +42,101 @@ pub struct StreamingProxyContext {
 }
 
 impl StreamingProxyContext {
-    /// Process a request and return a stream of bytes.
+    /// Process a request and return a receiver for the response stream.
     /// This is the main method to handle incoming requests and forward them to OpenAI.
     ///
     /// # Arguments
     /// * `req_body` - The raw request body bytes containing the chat completion request
     ///
     /// # Returns
-    /// A Result containing a pinned boxed stream of bytes, or an error if processing fails
+    /// A Result containing a receiver for the response stream, or an error if processing fails
     ///
     /// # Example
     /// ```rust
     /// use core::context::StreamingProxyContext;
     /// use bytes::Bytes;
-    /// use futures::StreamExt;
+    /// use tokio::sync::mpsc;
     ///
     /// async fn handle_request(context: &StreamingProxyContext, request_body: Bytes) {
-    ///     let mut stream = context.process_request(request_body).await.unwrap();
-    ///     while let Some(chunk) = stream.next().await {
+    ///     let mut rx = context.process_request(request_body).await.unwrap();
+    ///     while let Some(result) = rx.recv().await {
     ///         // Process each chunk of the response
     ///     }
     /// }
     /// ```
-    pub async fn process_request(
-        &self,
-        req_body: Bytes,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<Bytes>> + Send>>> {
-        // 1. Parse Request
-        let req_body = req_body.to_vec();
-        let openai_chat_completion_request = match self.parser.parse_request(&req_body) {
-            Ok(request) => request,
-            Err(e) => return Err(e),
-        };
-
-        // 2. Processor Chain
-        let processed_messages = match self
-            .processor_chain
-            .execute(openai_chat_completion_request)
-            .await
-        {
-            Ok(messages) => messages,
-            Err(e) => return Err(anyhow::anyhow!("Error during processing: {}", e)),
-        };
-
-        // 3. & 4. Forward to OpenAI and get response stream
-        let response_stream = match self
-            .forwarder
-            .forward(
-                processed_messages,
-                &*self.token_provider,
-                &*self.url_provider,
+    pub async fn process_request(&self, req_body: Bytes) -> Result<mpsc::Receiver<Result<Bytes>>> {
+        let span = if Span::current().id().is_some() {
+            // We're already in a span (e.g. from actix-web), use it
+            Span::current()
+        } else {
+            // No existing span, create a new one with trace_id
+            let trace_id = Uuid::new_v4();
+            tracing::span!(
+                tracing::Level::INFO,
+                "process_request",
+                trace_id = %trace_id,
+                request_size = req_body.len(),
             )
-            .await
-        {
-            Ok(stream) => stream,
-            Err(e) => return Err(anyhow::anyhow!("Error forwarding request: {}", e)),
         };
 
-        // 5. Convert to HTTP stream
-        self.sse_provider
-            .to_http_stream(Box::pin(response_stream))
-            .await
+        async {
+            info!("Starting request processing");
+
+            // 1. Parse Request
+            let req_body = req_body.to_vec();
+            let openai_chat_completion_request = match self.parser.parse_request(&req_body) {
+                Ok(request) => request,
+                Err(e) => return Err(e),
+            };
+
+            // 2. Processor Chain
+            let processed_messages = match self
+                .processor_chain
+                .execute(openai_chat_completion_request)
+                .await
+            {
+                Ok(messages) => messages,
+                Err(e) => return Err(anyhow::anyhow!("Error during processing: {}", e)),
+            };
+
+            // 3. Create channel for forwarder
+            let (tx, rx) = mpsc::channel(100);
+
+            // 4. Forward to OpenAI and get response stream
+            let forwarder = self.forwarder.clone();
+            let token_provider = self.token_provider.clone();
+            let url_provider = self.url_provider.clone();
+            let forward_span = tracing::span!(
+                parent: &span,
+                tracing::Level::INFO,
+                "forward_request"
+            );
+
+            tokio::spawn(
+                async move {
+                    if let Err(e) = forwarder
+                        .forward(processed_messages, &*token_provider, &*url_provider, tx)
+                        .await
+                    {
+                        error!(error = %e, "Error forwarding request");
+                    }
+                }
+                .instrument(forward_span),
+            );
+
+            // 5. Convert to SSE stream
+            let sse_span = tracing::span!(
+                parent: &span,
+                tracing::Level::INFO,
+                "sse_conversion"
+            );
+            self.sse_provider
+                .to_sse_channel(rx)
+                .instrument(sse_span)
+                .await
+        }
+        .instrument(span.clone())
+        .await
     }
 }
 

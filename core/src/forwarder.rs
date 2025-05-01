@@ -1,15 +1,22 @@
 //! Module responsible for forwarding processed events to the target LLM API (initially OpenAI).
 
-use crate::client_provider::ClientProvider;
-use crate::openai_types::{OpenAiChatCompletionRequest, OpenAiStreamChunk, StreamEvent};
-use crate::token_provider::TokenProvider;
-use crate::url_provider::UrlProvider;
+use crate::{
+    client_provider::ClientProvider,
+    openai_types::{OpenAiChatCompletionRequest, OpenAiStreamChunk, StreamEvent},
+    token_provider::TokenProvider,
+    url_provider::UrlProvider,
+};
 use anyhow::{Context, Result};
-use bytes::Bytes;
-use futures_util::{Stream, StreamExt};
-use reqwest::{self, Client};
-use std::pin::Pin;
+use futures::StreamExt;
 use std::sync::Arc;
+use tokio::sync::mpsc;
+use tracing::{debug, error, info, warn};
+
+pub enum StreamMessage {
+    Chunk(StreamEvent),
+    Done,
+    Error(anyhow::Error),
+}
 
 pub struct StreamForwarder {
     client_provider: Arc<dyn ClientProvider>,
@@ -25,7 +32,10 @@ impl StreamForwarder {
         request: OpenAiChatCompletionRequest,
         token_provider: &dyn TokenProvider,
         url_provider: &dyn UrlProvider,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamEvent>> + Send>>> {
+        tx: mpsc::Sender<StreamMessage>,
+    ) -> Result<()> {
+        debug!(?request, "Starting forward request");
+
         let token = token_provider
             .get_token()
             .await
@@ -35,18 +45,90 @@ impl StreamForwarder {
             .get_client()
             .await
             .context("Failed to get HTTP client")?;
+
         let response = self
             .send_request(client, token, request, url_provider)
             .await?;
-        let byte_stream = response.bytes_stream();
-        let event_stream = Self::process_stream(byte_stream);
 
-        Ok(Box::pin(event_stream))
+        info!(status = %response.status(), "Got response");
+
+        let mut stream = response.bytes_stream();
+
+        while let Some(chunk_result) = stream.next().await {
+            match chunk_result {
+                Ok(chunk) => {
+                    let lines = String::from_utf8_lossy(&chunk);
+                    debug!(chunk = %lines, "Received raw chunk");
+                    for line in lines.lines() {
+                        if line.starts_with("data:") {
+                            let data = line[5..].trim();
+                            debug!(data = %data, "Processing data line");
+                            if data == "[DONE]" {
+                                info!("Received [DONE] signal");
+                                if tx.send(StreamMessage::Done).await.is_err() {
+                                    warn!("Failed to send DONE message - receiver dropped");
+                                    return Ok(());
+                                }
+                                break;
+                            }
+                            match serde_json::from_str::<OpenAiStreamChunk>(data) {
+                                Ok(chunk_data) => {
+                                    debug!(?chunk_data, "Successfully parsed chunk");
+                                    if tx
+                                        .send(StreamMessage::Chunk(StreamEvent::Chunk(chunk_data)))
+                                        .await
+                                        .is_err()
+                                    {
+                                        warn!("Failed to send chunk - receiver dropped");
+                                        return Ok(());
+                                    }
+                                }
+                                Err(e) => {
+                                    error!(
+                                        error = %e,
+                                        data = %data,
+                                        "Failed to parse OpenAI stream chunk JSON"
+                                    );
+                                    if tx
+                                        .send(StreamMessage::Error(anyhow::anyhow!(
+                                            "Failed to parse OpenAI stream chunk: {}",
+                                            e
+                                        )))
+                                        .await
+                                        .is_err()
+                                    {
+                                        warn!("Failed to send error message - receiver dropped");
+                                        return Ok(());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!(error = %e, "Error reading chunk");
+                    if tx
+                        .send(StreamMessage::Error(anyhow::anyhow!(
+                            "Error reading chunk from OpenAI stream: {}",
+                            e
+                        )))
+                        .await
+                        .is_err()
+                    {
+                        warn!("Failed to send error message - receiver dropped");
+                        return Ok(());
+                    }
+                }
+            }
+        }
+
+        info!("Forward completed successfully");
+        Ok(())
     }
 
     async fn send_request(
         &self,
-        client: Client,
+        client: reqwest::Client,
         token: String,
         request: OpenAiChatCompletionRequest,
         url_provider: &dyn UrlProvider,
@@ -55,6 +137,8 @@ impl StreamForwarder {
             .get_url()
             .await
             .context("Failed to get API URL")?;
+
+        info!(url = %url, "Sending request");
 
         let response = client
             .post(url)
@@ -70,6 +154,11 @@ impl StreamForwarder {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Failed to read error body".to_string());
+            error!(
+                status = %status,
+                body = %error_body,
+                "Request failed"
+            );
             return Err(anyhow::anyhow!(
                 "OpenAI API request failed with status {}: {}",
                 status,
@@ -78,50 +167,5 @@ impl StreamForwarder {
         }
 
         Ok(response)
-    }
-
-    fn process_stream(
-        byte_stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Send,
-    ) -> impl Stream<Item = Result<StreamEvent>> {
-        byte_stream
-            .map(|chunk_result| {
-                chunk_result
-                    .map_err(|e| anyhow::anyhow!("Error reading chunk from OpenAI stream: {}", e))
-            })
-            .map(|chunk_result| match chunk_result {
-                Ok(chunk) => Self::process_chunk(chunk),
-                Err(e) => futures_util::stream::iter(vec![Err(e)]).boxed(),
-            })
-            .flatten()
-    }
-
-    fn process_chunk(chunk: Bytes) -> Pin<Box<dyn Stream<Item = Result<StreamEvent>> + Send>> {
-        let lines = String::from_utf8_lossy(&chunk);
-        let mut events = Vec::new();
-        for line in lines.lines() {
-            if line.starts_with("data:") {
-                let data = line[5..].trim();
-                if data == "[DONE]" {
-                    events.push(Ok(StreamEvent::Done));
-                    break;
-                }
-                match serde_json::from_str::<OpenAiStreamChunk>(data) {
-                    Ok(chunk_data) => {
-                        events.push(Ok(StreamEvent::Chunk(chunk_data)));
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "Failed to parse OpenAI stream chunk JSON: {:?}, data: '{}'",
-                            e, data
-                        );
-                        events.push(Err(anyhow::anyhow!(
-                            "Failed to parse OpenAI stream chunk: {}",
-                            e
-                        )));
-                    }
-                }
-            }
-        }
-        futures_util::stream::iter(events).boxed()
     }
 }

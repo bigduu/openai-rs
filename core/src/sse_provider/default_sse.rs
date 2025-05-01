@@ -1,10 +1,10 @@
 use super::SseProvider;
-use crate::openai_types::StreamEvent;
+use crate::forwarder::StreamMessage;
 use anyhow::Result;
 use bytes::Bytes;
-use futures_util::{Stream, StreamExt};
 use serde_json::json;
-use std::pin::Pin;
+use tokio::sync::mpsc;
+use tracing::{debug, error, info, warn};
 
 /// A default implementation of SseProvider that converts OpenAI stream events to SSE format
 #[derive(Clone)]
@@ -18,24 +18,53 @@ impl DefaultSseProvider {
 
 #[async_trait::async_trait]
 impl SseProvider for DefaultSseProvider {
-    async fn to_http_stream(
+    async fn to_sse_channel(
         &self,
-        stream: Pin<Box<dyn Stream<Item = Result<StreamEvent>> + Send>>,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<Bytes>> + Send>>> {
-        let sse_stream = stream.map(|event_result| match event_result {
-            Ok(event) => match event {
-                StreamEvent::Chunk(chunk) => {
-                    let json = serde_json::to_string(&chunk)?;
-                    Ok(Bytes::from(format!("data: {}\n\n", json)))
+        mut rx: mpsc::Receiver<StreamMessage>,
+    ) -> Result<mpsc::Receiver<Result<Bytes>>> {
+        info!("Starting SSE conversion");
+        let (tx, output_rx) = mpsc::channel(100);
+
+        tokio::spawn(async move {
+            while let Some(message) = rx.recv().await {
+                debug!("Converting message to SSE format");
+                let result = match message {
+                    StreamMessage::Chunk(event) => match event {
+                        crate::openai_types::StreamEvent::Chunk(chunk) => {
+                            let json = match serde_json::to_string(&chunk) {
+                                Ok(j) => j,
+                                Err(e) => {
+                                    error!(error = %e, "Failed to serialize event to JSON");
+                                    continue;
+                                }
+                            };
+                            debug!(json = %json, "Created SSE chunk");
+                            Ok(Bytes::from(format!("data: {}\n\n", json)))
+                        }
+                        crate::openai_types::StreamEvent::Done => {
+                            debug!("Converting DONE message");
+                            Ok(Bytes::from("data: [DONE]\n\n"))
+                        }
+                    },
+                    StreamMessage::Done => {
+                        debug!("Converting DONE message");
+                        Ok(Bytes::from("data: [DONE]\n\n"))
+                    }
+                    StreamMessage::Error(e) => {
+                        error!(error = %e, "Converting error message");
+                        let err_json = json!({"error": e.to_string()});
+                        Ok(Bytes::from(format!("event: error\ndata: {}\n\n", err_json)))
+                    }
+                };
+
+                if tx.send(result).await.is_err() {
+                    warn!("Failed to send SSE message - receiver dropped");
+                    break;
                 }
-                StreamEvent::Done => Ok(Bytes::from("data: [DONE]\n\n")),
-            },
-            Err(e) => {
-                let err_json = json!({"error": e.to_string()});
-                Ok(Bytes::from(format!("event: error\ndata: {}\n\n", err_json)))
             }
+            info!("SSE conversion completed");
         });
 
-        Ok(Box::pin(sse_stream))
+        Ok(output_rx)
     }
 }

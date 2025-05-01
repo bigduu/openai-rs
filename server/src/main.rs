@@ -4,7 +4,14 @@ use core::{
     context::{StreamingProxyContext, StreamingProxyContextBuilder},
     token_provider::StaticTokenProvider,
 };
-use std::{env, sync::Arc}; // For reading environment variables
+use std::sync::Arc;
+use tracing::{error, info};
+use tracing_actix_web::TracingLogger;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::{
+    EnvFilter, Registry,
+    fmt::{self, format::FmtSpan},
+};
 
 #[get("/")]
 async fn hello() -> impl Responder {
@@ -20,9 +27,9 @@ async fn chat_handler(
         Ok(stream) => HttpResponse::Ok()
             .content_type("text/event-stream")
             .insert_header(("Cache-Control", "no-cache"))
-            .streaming(stream),
+            .streaming(tokio_stream::wrappers::ReceiverStream::new(stream)),
         Err(e) => {
-            eprintln!("Error processing request: {}", e);
+            error!(error = %e, "Error processing request");
             HttpResponse::InternalServerError().body(e.to_string())
         }
     }
@@ -30,11 +37,26 @@ async fn chat_handler(
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // Initialize logging
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+    // Initialize tracing with a more detailed configuration
+    let env_filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info,server=debug,core=debug"));
 
-    println!("Starting server on http://127.0.0.1:8080");
-    println!("Reading OPENAI_API_KEY and OPENAI_MODEL from environment variables.");
+    let formatting_layer = fmt::layer()
+        .with_thread_ids(true)
+        .with_thread_names(true)
+        .with_target(true)
+        .with_file(true)
+        .with_line_number(true)
+        .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+        .pretty();
+
+    let subscriber = Registry::default().with(env_filter).with(formatting_layer);
+
+    // Set the subscriber as the default
+    tracing::subscriber::set_global_default(subscriber).expect("Failed to set tracing subscriber");
+
+    info!("Starting server on http://127.0.0.1:8080");
+    info!("Reading OPENAI_API_KEY and OPENAI_MODEL from environment variables.");
 
     let context = StreamingProxyContextBuilder::new()
         .with_url_provider(Arc::new(StaticUrlProvider::new(
@@ -47,6 +69,7 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
+            .wrap(TracingLogger::default())
             .app_data(web::Data::new(context.clone()))
             .service(hello)
             .service(chat_handler)
