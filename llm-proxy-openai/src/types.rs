@@ -1,3 +1,5 @@
+use llm_proxy_core::traits::LLMRequest;
+use llm_proxy_core::types::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -123,4 +125,53 @@ pub struct ErrorDetails {
     pub param: Option<String>,
     /// The error code, if any
     pub code: Option<String>,
+}
+
+impl LLMRequest for ChatCompletionRequest {
+    fn messages(&self) -> Result<serde_json::Value> {
+        Ok(serde_json::to_value(&self.messages)?)
+    }
+
+    fn model(&self) -> Result<String> {
+        Ok(self.model.clone())
+    }
+
+    fn stream(&self) -> Result<bool> {
+        Ok(self.stream)
+    }
+
+    fn max_tokens(&self) -> Option<u32> {
+        self.max_tokens
+    }
+
+    fn to_map(&self) -> Result<HashMap<String, serde_json::Value>> {
+        let mut map = HashMap::new();
+        map.insert(
+            "messages".to_string(),
+            serde_json::to_value(&self.messages)?,
+        );
+        map.insert("model".to_string(), serde_json::to_value(&self.model)?);
+        map.insert("stream".to_string(), serde_json::to_value(&self.stream)?);
+        if let Some(max_tokens) = self.max_tokens {
+            map.insert("max_tokens".to_string(), serde_json::to_value(max_tokens)?);
+        }
+        if let Some(temperature) = self.temperature {
+            map.insert(
+                "temperature".to_string(),
+                serde_json::to_value(temperature)?,
+            );
+        }
+        if let Some(functions) = &self.functions {
+            map.insert("functions".to_string(), serde_json::to_value(functions)?);
+        }
+        // Add any additional parameters
+        for (key, value) in &self.additional_params {
+            map.insert(key.clone(), value.clone());
+        }
+        Ok(map)
+    }
+
+    fn to_value(&self) -> Result<serde_json::Value> {
+        Ok(serde_json::to_value(self)?)
+    }
 }

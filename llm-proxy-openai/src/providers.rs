@@ -4,51 +4,30 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use llm_proxy_core::{
     traits::{RequestParser, TokenProvider, UrlProvider},
+    types::RouteConfig,
     ClientProvider, Error, Result,
 };
-use serde_json::Value;
 
-use crate::types::ChatCompletionRequest;
+use crate::ChatCompletionRequest;
 
 /// Parser for OpenAI chat completion requests
 pub struct OpenAIRequestParser {
-    route_config: Option<llm_proxy_core::types::RouteConfig>,
+    route_config: Option<RouteConfig>,
 }
 
 impl OpenAIRequestParser {
-    pub fn new(route_config: Option<llm_proxy_core::types::RouteConfig>) -> Self {
+    pub fn new(route_config: Option<RouteConfig>) -> Self {
         Self { route_config }
     }
 }
 
 #[async_trait]
-impl RequestParser for OpenAIRequestParser {
-    async fn parse(&self, body: Bytes) -> Result<(Value, bool)> {
-        let mut request: Value = serde_json::from_slice(&body)
+impl RequestParser<ChatCompletionRequest> for OpenAIRequestParser {
+    async fn parse(&self, body: Bytes) -> Result<ChatCompletionRequest> {
+        let request: ChatCompletionRequest = serde_json::from_slice(&body)
             .map_err(|e| Error::ParseError(format!("Failed to parse request JSON: {e}")))?;
 
-        // Check if streaming was requested in the body
-        let stream_requested = request
-            .get("stream")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-
-        // If we have route config, check if streaming is allowed
-        let stream_allowed = self
-            .route_config
-            .as_ref()
-            .map(|config| config.allow_streaming)
-            .unwrap_or(true);
-
-        // Final streaming decision
-        let should_stream = stream_requested && stream_allowed;
-
-        // Set the stream flag in the request to match our decision
-        if let Some(obj) = request.as_object_mut() {
-            obj.insert("stream".to_string(), Value::Bool(should_stream));
-        }
-
-        Ok((request, should_stream))
+        Ok(request)
     }
 }
 pub struct StaticClientProvider {
@@ -179,9 +158,9 @@ mod tests {
         let result = parser.parse(bytes.into()).await;
         assert!(result.is_ok());
 
-        let (parsed, stream) = result.unwrap();
-        assert!(stream);
-        assert_eq!(parsed["model"], "gpt-4");
+        let parsed = result.unwrap();
+        assert!(parsed.stream);
+        assert_eq!(parsed.model, "gpt-4");
     }
 
     #[tokio::test]

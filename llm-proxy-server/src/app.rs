@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use actix_cors::Cors;
 use actix_web::{
@@ -9,7 +9,8 @@ use actix_web::{
 use anyhow::Result;
 use bytes::BytesMut;
 use futures_util::StreamExt;
-use llm_proxy_core::Pipeline;
+use llm_proxy_core::{LLMRequest, Pipeline};
+use llm_proxy_openai::ChatCompletionRequest;
 use tracing::{error, info};
 
 use crate::config::{Config, RouteConfig};
@@ -22,21 +23,21 @@ pub struct AppState {
 
 /// Registry of pre-configured pipelines
 pub struct PipelineRegistry {
-    pipelines: std::collections::HashMap<String, Arc<Pipeline>>,
+    pipelines: HashMap<String, Arc<Pipeline<ChatCompletionRequest>>>,
 }
 
 impl PipelineRegistry {
     pub fn new() -> Self {
         Self {
-            pipelines: std::collections::HashMap::new(),
+            pipelines: HashMap::new(),
         }
     }
 
-    pub fn get(&self, route_id: &str) -> Option<Arc<Pipeline>> {
+    pub fn get(&self, route_id: &str) -> Option<Arc<Pipeline<ChatCompletionRequest>>> {
         self.pipelines.get(route_id).cloned()
     }
 
-    pub fn insert(&mut self, route_id: String, pipeline: Pipeline) {
+    pub fn insert(&mut self, route_id: String, pipeline: Pipeline<ChatCompletionRequest>) {
         self.pipelines.insert(route_id, Arc::new(pipeline));
     }
 }
@@ -146,7 +147,10 @@ async fn read_request_body(mut payload: web::Payload) -> Result<BytesMut> {
 }
 
 /// Get or create a pipeline for the given route
-async fn get_pipeline_for_route(state: &AppState, route: &RouteConfig) -> Result<Arc<Pipeline>> {
+async fn get_pipeline_for_route(
+    state: &AppState,
+    route: &RouteConfig,
+) -> Result<Arc<Pipeline<ChatCompletionRequest>>> {
     // Check if we already have a pipeline for this route
     if let Some(pipeline) = state.pipelines.read().await.get(&route.path_prefix) {
         return Ok(pipeline);

@@ -1,26 +1,36 @@
 use std::clone::Clone;
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::StreamExt;
 use llm_proxy_core::{
-    traits::{ClientProvider, LLMClient, TokenProvider, UrlProvider},
+    traits::{ClientProvider, LLMClient, RequestParser, TokenProvider, UrlProvider},
     Error, Result,
 };
-use serde_json::Value;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use crate::types::{ChatCompletionRequest, ErrorResponse, StreamChunk};
+
+/// Parser for OpenAI chat completion requests
+pub struct OpenAIRequestParser;
+
+#[async_trait]
+impl RequestParser<ChatCompletionRequest> for OpenAIRequestParser {
+    async fn parse(&self, body: Bytes) -> Result<ChatCompletionRequest> {
+        let request: ChatCompletionRequest = serde_json::from_slice(&body)
+            .map_err(|e| Error::ParseError(format!("Failed to parse OpenAI request: {e}")))?;
+        Ok(request)
+    }
+}
 
 /// OpenAI-specific implementation of LLMClient
 pub struct OpenAIClient {
     client_provider: Arc<dyn ClientProvider>,
     token_provider: Arc<dyn TokenProvider>,
     url_provider: Arc<dyn UrlProvider>,
+    request_parser: OpenAIRequestParser,
 }
 
 impl Clone for OpenAIClient {
@@ -29,6 +39,7 @@ impl Clone for OpenAIClient {
             client_provider: self.client_provider.clone(),
             token_provider: self.token_provider.clone(),
             url_provider: self.url_provider.clone(),
+            request_parser: OpenAIRequestParser,
         }
     }
 }
@@ -44,19 +55,14 @@ impl OpenAIClient {
             client_provider,
             token_provider,
             url_provider,
+            request_parser: OpenAIRequestParser,
         }
-    }
-
-    /// Parse raw request into OpenAI-specific format
-    fn parse_request(&self, raw_request: Value) -> Result<ChatCompletionRequest> {
-        serde_json::from_value(raw_request)
-            .map_err(|e| Error::ParseError(format!("Failed to parse OpenAI request: {e}")))
     }
 
     /// Send request to OpenAI and get response
     async fn send_request(
         &self,
-        request: ChatCompletionRequest,
+        request: &ChatCompletionRequest,
         client: reqwest::Client,
         token: String,
         url: String,
@@ -176,8 +182,11 @@ impl OpenAIClient {
 }
 
 #[async_trait]
-impl LLMClient for OpenAIClient {
-    async fn execute(&self, request: Value, stream: bool) -> Result<mpsc::Receiver<Result<Bytes>>> {
+impl LLMClient<ChatCompletionRequest> for OpenAIClient {
+    async fn execute(
+        &self,
+        request: ChatCompletionRequest,
+    ) -> Result<mpsc::Receiver<Result<Bytes>>> {
         // 1. Get dependencies
         let client = self
             .client_provider
@@ -196,28 +205,30 @@ impl LLMClient for OpenAIClient {
             .map_err(|e| Error::LLMError(format!("Failed to get API URL: {e}")))?;
 
         // 2. Parse request into OpenAI format
-        let mut openai_request = self.parse_request(request)?;
-        openai_request.stream = stream;
+        let request_bytes = serde_json::to_vec(&request)
+            .map_err(|e| Error::ParseError(format!("Failed to serialize request: {e}")))?;
+        let request = self
+            .request_parser
+            .parse(Bytes::from(request_bytes))
+            .await?;
 
         // 3. Create response channel
         let (tx, rx) = mpsc::channel(100);
 
         // 4. Send request and handle response
-        let response = self
-            .send_request(openai_request, client, token, url)
-            .await?;
+        let response = self.send_request(&request, client, token, url).await?;
 
-        let this = self.clone();
-        // 5. Process response based on streaming preference
-        let handle_future: Pin<Box<dyn Future<Output = Result<()>> + Send>> = if stream {
-            Box::pin(this.handle_stream(response, tx))
-        } else {
-            Box::pin(this.handle_non_stream(response, tx))
-        };
-
-        // 6. Spawn response handling task
+        // 5. Handle response based on streaming flag
+        let client = self.clone();
+        let stream = request.stream;
         tokio::spawn(async move {
-            if let Err(e) = handle_future.await {
+            let result = if stream {
+                client.handle_stream(response, tx).await
+            } else {
+                client.handle_non_stream(response, tx).await
+            };
+
+            if let Err(e) = result {
                 error!(error = %e, "Error handling OpenAI response");
             }
         });
@@ -275,7 +286,10 @@ mod tests {
             "stream": true
         });
 
-        let result = client.parse_request(request);
+        let result = client
+            .request_parser
+            .parse(Bytes::from(serde_json::to_vec(&request).unwrap()))
+            .await;
         assert!(result.is_ok());
 
         let parsed = result.unwrap();

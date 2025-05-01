@@ -5,6 +5,7 @@ use uuid::Uuid;
 use crate::{
     traits::{LLMClient, ProcessorChain, RequestParser},
     types::{ResponseStream, Result},
+    LLMRequest,
 };
 
 /// Pipeline for handling LLM proxy requests.
@@ -17,14 +18,14 @@ use crate::{
 /// All components are trait objects, allowing for flexible configuration
 /// and different implementations for different LLM services.
 #[derive(Clone)]
-pub struct Pipeline {
-    parser: Arc<dyn RequestParser>,
-    processor_chain: Arc<ProcessorChain>,
-    llm_client: Arc<dyn LLMClient>,
+pub struct Pipeline<T: LLMRequest> {
+    parser: Arc<dyn RequestParser<T>>,
+    processor_chain: Arc<ProcessorChain<T>>,
+    llm_client: Arc<dyn LLMClient<T>>,
     trace_id: Uuid,
 }
 
-impl Pipeline {
+impl<T: LLMRequest> Pipeline<T> {
     /// Create a new pipeline with the given components.
     ///
     /// # Arguments
@@ -32,9 +33,9 @@ impl Pipeline {
     /// * `processor_chain` - Chain of processors for modifying requests
     /// * `llm_client` - Client for communicating with the LLM service
     pub fn new(
-        parser: Arc<dyn RequestParser>,
-        processor_chain: Arc<ProcessorChain>,
-        llm_client: Arc<dyn LLMClient>,
+        parser: Arc<dyn RequestParser<T>>,
+        processor_chain: Arc<ProcessorChain<T>>,
+        llm_client: Arc<dyn LLMClient<T>>,
     ) -> Self {
         Self {
             parser,
@@ -59,10 +60,9 @@ impl Pipeline {
         );
 
         // 1. Parse Request
-        let (parsed_request, stream_requested) = self.parser.parse(request_body).await?;
+        let parsed_request = self.parser.parse(request_body).await?;
         debug!(
             trace_id = %self.trace_id,
-            stream_requested = stream_requested,
             "Request parsed"
         );
 
@@ -74,11 +74,7 @@ impl Pipeline {
         );
 
         // 3. Forward to LLM
-        let response_stream = match self
-            .llm_client
-            .execute(processed_request, stream_requested)
-            .await
-        {
+        let response_stream = match self.llm_client.execute(processed_request).await {
             Ok(stream) => stream,
             Err(e) => {
                 error!(
@@ -101,7 +97,7 @@ impl Pipeline {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Error;
+    use crate::{Error, LLMRequest, Processor};
     use async_trait::async_trait;
     use bytes::Bytes;
     use serde_json::Value;
@@ -109,18 +105,45 @@ mod tests {
 
     struct MockRequestParser;
 
+    struct MockRequest;
+    impl LLMRequest for MockRequest {
+        fn messages(&self) -> Result<Value> {
+            Ok(serde_json::json!({"test": "request"}))
+        }
+
+        fn model(&self) -> Result<String> {
+            todo!()
+        }
+
+        fn stream(&self) -> Result<bool> {
+            todo!()
+        }
+
+        fn max_tokens(&self) -> Option<u32> {
+            todo!()
+        }
+
+        fn to_map(&self) -> Result<std::collections::HashMap<String, Value>> {
+            todo!()
+        }
+
+        fn to_value(&self) -> Result<Value> {
+            todo!()
+        }
+    }
+
     #[async_trait]
-    impl RequestParser for MockRequestParser {
-        async fn parse(&self, _body: Bytes) -> Result<(Value, bool)> {
-            Ok((serde_json::json!({"test": "request"}), true))
+    impl RequestParser<MockRequest> for MockRequestParser {
+        async fn parse(&self, _body: Bytes) -> Result<MockRequest> {
+            Ok(MockRequest)
         }
     }
 
     struct MockProcessor;
 
     #[async_trait]
-    impl crate::traits::Processor for MockProcessor {
-        async fn process(&self, request: Value) -> Result<Value> {
+    impl Processor<MockRequest> for MockProcessor {
+        async fn process(&self, request: MockRequest) -> Result<MockRequest> {
             Ok(request)
         }
     }
@@ -128,8 +151,8 @@ mod tests {
     struct MockLLMClient;
 
     #[async_trait]
-    impl LLMClient for MockLLMClient {
-        async fn execute(&self, _request: Value, _stream: bool) -> Result<ResponseStream> {
+    impl LLMClient<MockRequest> for MockLLMClient {
+        async fn execute(&self, _request: MockRequest) -> Result<ResponseStream> {
             let (tx, rx) = mpsc::channel(1);
             let _ = tx.send(Ok(Bytes::from("test response"))).await;
             Ok(rx)
