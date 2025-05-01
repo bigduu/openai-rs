@@ -1,128 +1,111 @@
-# OpenAI-RS
+# LLM Proxy
 
-A Rust-based implementation of the OpenAI API client and server. This project provides a robust and efficient way to interact with OpenAI's services using Rust, with a focus on streaming support and flexible configuration.
-
-## Project Structure
-
-The project is organized into two main components:
-
-- `core`: Contains the core OpenAI API client implementation with streaming support
-- `server`: Provides a web server interface for the OpenAI API client
+A flexible and configurable proxy server for Large Language Model APIs, with support for request processing pipelines and multiple LLM providers.
 
 ## Features
 
-- Streaming support for real-time responses using Server-Sent Events (SSE)
-- Flexible provider system for customizing:
-  - HTTP client implementation
-  - URL endpoints
-  - API token management
-  - Request parsing
-  - Message processing
-- Async/await support for efficient API calls
-- JSON serialization/deserialization
-- Comprehensive error handling
-- Logging capabilities
-- Web server interface
+- 🔄 Configurable request routing and processing pipelines
+- 🌊 Support for both streaming and non-streaming responses
+- 🔌 Extensible provider system (currently supporting OpenAI)
+- 🔧 Custom request processors for enhancing or modifying requests
+- 🔐 Secure token management through environment variables
+- 📝 Comprehensive logging and error handling
+- 🛠️ Easy configuration through TOML files
 
-## Prerequisites
-
-- Rust (latest stable version)
-- Cargo (Rust's package manager)
-- OpenAI API key
-
-## Installation
+## Quick Start
 
 1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/llm-proxy.git
+   cd llm-proxy
+   ```
 
-    ```bash
-    git clone https://github.com/yourusername/openai-rs.git
-    cd openai-rs
-    ```
+2. Copy the example configuration:
+   ```bash
+   cp llm-proxy-server/config.example.toml config.toml
+   ```
 
-2. Build the project:
+3. Set your OpenAI API key:
+   ```bash
+   export OPENAI_API_KEY=your-api-key-here
+   ```
 
+4. Run the server:
+   ```bash
+   cargo run -p llm-proxy-server
+   ```
+
+The server will start at `http://127.0.0.1:3000` by default.
+
+## Configuration
+
+The proxy server is configured through a TOML file. See `llm-proxy-server/config.example.toml` for a complete example with comments.
+
+### Key Configuration Sections:
+
+- `[llm.<name>]`: Configure LLM backend services
+- `[processor.<name>]`: Define request processors
+- `[[route]]`: Set up request routing rules
+- `[server]`: Configure server settings
+
+Example configuration:
+```toml
+[llm.openai_chat]
+provider = "openai"
+type = "chat"
+base_url = "https://api.openai.com/v1"
+token_env = "OPENAI_API_KEY"
+supports_streaming = true
+
+[processor.enhance_query]
+type = "openai_chat"
+config_value = "gpt-4"
+additional_config = { system_prompt = "Enhance this query" }
+
+[[route]]
+path_prefix = "/v1/chat/completions"
+target_llm = "openai_chat"
+processors = ["enhance_query"]
+allow_streaming = true
+allow_non_streaming = true
+```
+
+## Project Structure
+
+- `llm-proxy-core`: Core traits and types
+- `llm-proxy-openai`: OpenAI-specific implementations
+- `llm-proxy-server`: HTTP server and configuration
+
+## Adding New Providers
+
+1. Create a new crate (e.g., `llm-proxy-anthropic`)
+2. Implement the core traits from `llm-proxy-core`
+3. Add a feature flag to `llm-proxy-server`
+
+## Development
+
+Build the project:
 ```bash
 cargo build
 ```
 
-## Configuration
-
-Before running the server, you need to set up your OpenAI API key. You can do this in several ways:
-
-1. Environment variable:
-
-    ```bash
-    export OPENAI_API_KEY=your_api_key_here
-    ```
-
-2. Or use the `StreamingProxyContextBuilder` to configure your own token provider:
-
-```rust
-use core::context::StreamingProxyContextBuilder;
-use core::token_provider::StaticTokenProvider;
-use std::sync::Arc;
-
-let context = StreamingProxyContextBuilder::new()
-    .with_token_provider(Arc::new(StaticTokenProvider::new("your-api-key".to_string())))
-    .build();
-```
-
-## Usage
-
-### Running the Server
-
-To start the server:
-
+Run tests:
 ```bash
-cargo run -p server
+cargo test
 ```
 
-The server will start on the default port (check the server configuration for the exact port).
-
-### Using the Core Client
-
-You can use the core client in your Rust projects by adding it as a dependency in your `Cargo.toml`:
-
-```toml
-[dependencies]
-openai-rs-core = { path = "path/to/openai-rs/core" }
+Run with logging:
+```bash
+RUST_LOG=debug cargo run -p llm-proxy-server
 ```
-
-Example usage with custom configuration:
-
-```rust
-use core::context::StreamingProxyContextBuilder;
-use core::token_provider::StaticTokenProvider;
-use core::url_provider::StaticUrlProvider;
-use std::sync::Arc;
-
-// Create a custom context
-let context = StreamingProxyContextBuilder::new()
-    .with_token_provider(Arc::new(StaticTokenProvider::new("your-api-key".to_string())))
-    .with_url_provider(Arc::new(StaticUrlProvider::new("https://api.openai.com/v1/chat/completions".to_string())))
-    .build();
-
-// Process a request
-let response_stream = context.process_request(request_body).await?;
-```
-
-## Dependencies
-
-The project uses several key dependencies:
-
-- `tokio`: For async runtime
-- `reqwest`: For HTTP client functionality
-- `serde`: For JSON serialization/deserialization
-- `actix-web`: For the web server
-- `tracing`: For logging
-- `bytes`: For efficient byte handling
-- `futures`: For stream handling
-- `anyhow`: For error handling
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Create a pull request
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.

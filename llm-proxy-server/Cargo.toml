@@ -1,0 +1,40 @@
+[package]
+name = "llm-proxy-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+llm-proxy-core = { path = "../llm-proxy-core" }
+llm-proxy-openai = { path = "../llm-proxy-openai" }
+
+# Runtime
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+futures-util = { workspace = true }
+
+# Web framework
+actix-web = { workspace = true }
+actix-cors = "0.6"
+
+# Error handling
+anyhow = { workspace = true }
+
+# Configuration
+config = { version = "0.13", features = ["toml"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+env_logger = { workspace = true }
+
+# Utils
+bytes = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+default = ["openai"]
+openai = []

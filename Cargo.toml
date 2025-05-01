@@ -1,21 +1,17 @@
-[workspace.lints]
-
 [workspace]
 resolver = "2"
-members = ["core", "server"]
+members = ["llm-proxy-core", "llm-proxy-openai", "llm-proxy-server"]
 
 [workspace.dependencies]
 # Runtime
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
-tokio-stream = "0.1"                           # Added for stream processing
-futures-util = { version = "0.3" }             # Ensure stream feature is enabled
+tokio-stream = "0.1"
+futures-util = { version = "0.3" }
 
 # http client
-reqwest = { version = "0.12.15", features = [
-    "json",
-    "stream",
-] } # Features for working with JSON, streaming, and byte handling
+reqwest = { version = "0.12.15", features = ["json", "stream"] }
+
 # JSON serialization/deserialization
 serde = { version = "1.0.219", features = ["derive", "serde_derive"] }
 serde_json = { version = "1.0.140" }
@@ -28,7 +24,22 @@ actix-web = "4"
 
 # Logging
 tracing = { version = "0.1.41", features = ["log"] }
-tracing-subscriber = { version = "0.3.19", features = ["fmt", "time"] }
-env_logger = { version = "0.11", features = ["env"] }                   # For logging
+tracing-subscriber = { version = "0.3.19", features = [
+    "fmt",
+    "time",
+    "env-filter",
+] }
+env_logger = { version = "0.11" }
 
+# Utils
 bytes = { version = "1.6.0" }
+uuid = { version = "1.7.0", features = ["v4", "serde"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+enum_glob_use = "deny"
+pedantic = "deny"
+nursery = "deny"
+unwrap_used = "deny"

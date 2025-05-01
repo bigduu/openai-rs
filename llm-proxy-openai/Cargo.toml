@@ -1,0 +1,31 @@
+[package]
+name = "llm-proxy-openai"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+llm-proxy-core = { path = "../llm-proxy-core" }
+
+# Runtime
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures-util = { workspace = true }
+
+# HTTP client
+reqwest = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Utils
+bytes = { workspace = true }
+
+[lints]
+workspace = true

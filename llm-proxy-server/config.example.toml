@@ -1,0 +1,49 @@
+# LLM Proxy Server Configuration
+
+# LLM Backend Configurations
+[llm.openai_chat]
+provider = "openai"
+type = "chat"
+base_url = "https://api.openai.com/v1"
+token_env = "OPENAI_API_KEY"
+supports_streaming = true
+
+[llm.openai_embeddings]
+provider = "openai"
+type = "embedding"
+base_url = "https://api.openai.com/v1"
+token_env = "OPENAI_API_KEY"
+supports_streaming = false
+
+# Processor Configurations
+[processor.enhance_query]
+type = "openai_chat"
+config_value = "gpt-4"
+additional_config = { system_prompt = "You are a query enhancement assistant. Your role is to improve and expand the user's query to get better results." }
+
+[processor.log_request]
+type = "logger"
+config_value = "INFO"
+
+# Route Configurations
+[[route]]
+path_prefix = "/v1/chat/completions"
+target_llm = "openai_chat"
+processors = ["enhance_query", "log_request"]
+allow_streaming = true
+allow_non_streaming = true
+
+[[route]]
+path_prefix = "/v1/embeddings"
+target_llm = "openai_embeddings"
+processors = ["log_request"]
+allow_streaming = false
+allow_non_streaming = true
+
+# Server Configuration
+[server]
+host = "127.0.0.1"
+port = 3000
+log_level = "INFO"
+request_timeout_secs = 300   # 5 minutes
+cors_allowed_origins = ["*"]
