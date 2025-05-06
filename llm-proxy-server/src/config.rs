@@ -79,6 +79,12 @@ pub struct ServerConfig {
 
 impl Config {
     /// Load configuration from a TOML file
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the configuration file is not found or
+    /// if the configuration is invalid.
+    #[must_use]
     pub fn from_file(path: &str) -> anyhow::Result<Self> {
         let config = config::Config::builder()
             .add_source(config::File::with_name(path))
@@ -88,6 +94,7 @@ impl Config {
     }
 
     /// Get a route configuration that matches the given path
+    #[must_use]
     pub fn find_route(&self, path: &str) -> Option<&RouteConfig> {
         self.route
             .iter()
@@ -95,6 +102,11 @@ impl Config {
     }
 
     /// Get an LLM configuration by ID
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the LLM configuration is not found.
+    #[must_use]
     pub fn get_llm(&self, id: &str) -> anyhow::Result<&LLMConfig> {
         self.llm
             .get(id)
@@ -102,6 +114,11 @@ impl Config {
     }
 
     /// Get a processor configuration by ID
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the processor configuration is not found.
+    #[must_use]
     pub fn get_processor(&self, id: &str) -> anyhow::Result<&ProcessorConfig> {
         self.processor
             .get(id)

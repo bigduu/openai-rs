@@ -6,7 +6,7 @@ use actix_web::{
     web::{self},
     App, HttpRequest, HttpResponse, HttpServer,
 };
-use anyhow::{Error, Result};
+use anyhow::Result;
 use bytes::BytesMut;
 use futures_util::StreamExt;
 use llm_proxy_core::Pipeline;
@@ -27,12 +27,14 @@ pub struct PipelineRegistry {
 }
 
 impl PipelineRegistry {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             pipelines: HashMap::new(),
         }
     }
 
+    #[must_use]
     pub fn get(&self, route_id: &str) -> Option<Arc<Pipeline<ChatCompletionRequest>>> {
         self.pipelines.get(route_id).cloned()
     }
@@ -42,7 +44,18 @@ impl PipelineRegistry {
     }
 }
 
+impl Default for PipelineRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Configure and start the HTTP server
+///
+/// # Errors
+///
+/// This function will return an error if the server cannot be started.
+#[must_use]
 pub async fn run_server(config: config::Config) -> Result<()> {
     let config = Arc::new(config);
     let pipelines = Arc::new(tokio::sync::RwLock::new(PipelineRegistry::new()));
@@ -88,6 +101,7 @@ pub async fn run_server(config: config::Config) -> Result<()> {
 }
 
 /// Generic request handler that routes requests based on configuration
+#[allow(clippy::future_not_send, clippy::cognitive_complexity)]
 async fn handle_request(
     req: HttpRequest,
     payload: web::Payload,
@@ -96,11 +110,8 @@ async fn handle_request(
     let path = req.uri().path();
 
     // Find matching route
-    let route = match state.config.find_route(path) {
-        Some(route) => route,
-        None => {
-            return HttpResponse::NotFound().body(format!("No route found for path: {path}"));
-        }
+    let Some(route) = state.config.find_route(path) else {
+        return HttpResponse::NotFound().body(format!("No route found for path: {path}"));
     };
 
     // Get or create pipeline for this route
@@ -138,6 +149,7 @@ async fn handle_request(
 }
 
 /// Read the entire request body into a buffer
+#[allow(clippy::future_not_send)]
 async fn read_request_body(mut payload: web::Payload) -> Result<BytesMut> {
     let mut body = BytesMut::new();
     while let Some(chunk) = payload.next().await {
@@ -152,7 +164,8 @@ async fn get_pipeline_for_route(
     route: &config::RouteConfig,
 ) -> Result<Arc<Pipeline<ChatCompletionRequest>>> {
     // Check if we already have a pipeline for this route
-    if let Some(pipeline) = state.pipelines.read().await.get(&route.path_prefix) {
+    let value = state.pipelines.read().await.get(&route.path_prefix);
+    if let Some(pipeline) = value {
         return Ok(pipeline);
     }
 
@@ -160,7 +173,7 @@ async fn get_pipeline_for_route(
     #[cfg(feature = "openai")]
     if let Some(llm_config) = state.config.llm.get(&route.target_llm) {
         if llm_config.provider == "openai" {
-            let pipeline = create_openai_pipeline(llm_config, route).await?;
+            let pipeline = create_openai_pipeline(llm_config, route);
 
             // Store it in the registry
             state
@@ -180,10 +193,10 @@ async fn get_pipeline_for_route(
 }
 
 #[cfg(feature = "openai")]
-async fn create_openai_pipeline(
+fn create_openai_pipeline(
     llm_config: &config::LLMConfig,
     route: &config::RouteConfig,
-) -> Result<Arc<Pipeline<ChatCompletionRequest>>, Error> {
+) -> Arc<Pipeline<ChatCompletionRequest>> {
     let processors = vec![];
     // Convert server RouteConfig to core RouteConfig
     let core_route = llm_proxy_core::types::RouteConfig {
@@ -201,5 +214,5 @@ async fn create_openai_pipeline(
         Some(core_route),
     );
 
-    Ok(Arc::new(pipeline))
+    Arc::new(pipeline)
 }

@@ -100,65 +100,92 @@ impl OpenAIClient {
 
         while let Some(chunk_result) = stream.next().await {
             match chunk_result {
-                Ok(chunk) => {
-                    let lines = String::from_utf8_lossy(&chunk);
-                    debug!(chunk = %lines, "Received raw chunk");
-
-                    for line in lines.lines() {
-                        if line.starts_with("data: ") {
-                            let data = line[5..].trim();
-                            debug!(data = %data, "Processing data line");
-
-                            if data == "[DONE]" {
-                                info!("Received [DONE] signal");
-                                break;
-                            }
-
-                            match serde_json::from_str::<StreamChunk>(data) {
-                                Ok(chunk_data) => {
-                                    debug!(?chunk_data, "Successfully parsed chunk");
-                                    if tx.send(Ok(chunk.clone())).await.is_err() {
-                                        warn!("Failed to send chunk - receiver dropped");
-                                        return Ok(());
-                                    }
-                                }
-                                Err(e) => {
-                                    error!(
-                                        error = %e,
-                                        data = %data,
-                                        "Failed to parse OpenAI stream chunk"
-                                    );
-                                    if tx
-                                        .send(Err(Error::LLMError(format!(
-                                            "Failed to parse OpenAI stream chunk: {e}"
-                                        ))))
-                                        .await
-                                        .is_err()
-                                    {
-                                        warn!("Failed to send error - receiver dropped");
-                                        return Ok(());
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                Ok(chunk) => self.process_chunk(chunk, &tx).await?,
                 Err(e) => {
-                    error!(error = %e, "Error reading chunk from OpenAI");
-                    if tx
-                        .send(Err(Error::LLMError(format!(
-                            "Error reading chunk from OpenAI: {e}"
-                        ))))
-                        .await
-                        .is_err()
-                    {
-                        warn!("Failed to send error - receiver dropped");
-                        return Ok(());
-                    }
+                    self.send_error(&tx, format!("Error reading chunk from OpenAI: {e}"))
+                        .await?;
                 }
             }
         }
 
+        Ok(())
+    }
+
+    /// Process a single chunk of data from the stream
+    async fn process_chunk(&self, chunk: Bytes, tx: &mpsc::Sender<Result<Bytes>>) -> Result<()> {
+        let lines = String::from_utf8_lossy(&chunk);
+        debug!(chunk = %lines, "Received raw chunk");
+
+        for line in lines.lines() {
+            self.process_line(line, &chunk, tx).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Process a single line from the chunk
+    async fn process_line(
+        &self,
+        line: &str,
+        original_chunk: &Bytes,
+        tx: &mpsc::Sender<Result<Bytes>>,
+    ) -> Result<()> {
+        if !line.starts_with("data: ") {
+            return Ok(());
+        }
+
+        let data = line[5..].trim();
+        debug!(data = %data, "Processing data line");
+
+        if data == "[DONE]" {
+            info!("Received [DONE] signal");
+            return Ok(());
+        }
+
+        self.parse_and_send_chunk(data, original_chunk, tx).await
+    }
+
+    /// Parse the chunk data and send it through the channel
+    async fn parse_and_send_chunk(
+        &self,
+        data: &str,
+        original_chunk: &Bytes,
+        tx: &mpsc::Sender<Result<Bytes>>,
+    ) -> Result<()> {
+        match serde_json::from_str::<StreamChunk>(data) {
+            Ok(chunk_data) => {
+                debug!(?chunk_data, "Successfully parsed chunk");
+                self.send_chunk(original_chunk, tx).await
+            }
+            Err(e) => {
+                error!(
+                    error = %e,
+                    data = %data,
+                    "Failed to parse OpenAI stream chunk"
+                );
+                self.send_error(tx, format!("Failed to parse OpenAI stream chunk: {e}"))
+                    .await
+            }
+        }
+    }
+
+    /// Send a chunk through the channel
+    async fn send_chunk(&self, chunk: &Bytes, tx: &mpsc::Sender<Result<Bytes>>) -> Result<()> {
+        if tx.send(Ok(chunk.clone())).await.is_err() {
+            warn!("Failed to send chunk - receiver dropped");
+        }
+        Ok(())
+    }
+
+    /// Send an error message through the channel
+    async fn send_error(
+        &self,
+        tx: &mpsc::Sender<Result<Bytes>>,
+        error_message: String,
+    ) -> Result<()> {
+        if tx.send(Err(Error::LLMError(error_message))).await.is_err() {
+            warn!("Failed to send error - receiver dropped");
+        }
         Ok(())
     }
 
