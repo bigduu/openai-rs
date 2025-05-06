@@ -3,20 +3,20 @@ use std::env;
 use async_trait::async_trait;
 use bytes::Bytes;
 use llm_proxy_core::{
-    traits::{RequestParser, TokenProvider, UrlProvider},
-    types::RouteConfig,
-    ClientProvider, Error, Result,
+    ClientProvider, Error, RequestParser, Result, RouteConfig, TokenProvider, UrlProvider,
 };
 
 use crate::ChatCompletionRequest;
 
-/// Parser for OpenAI chat completion requests
+/// Parser for `OpenAI` chat completion requests
 pub struct OpenAIRequestParser {
     route_config: Option<RouteConfig>,
 }
 
 impl OpenAIRequestParser {
-    pub fn new(route_config: Option<RouteConfig>) -> Self {
+    /// Create a new `OpenAI` request parser with the given route configuration
+    #[must_use]
+    pub const fn new(route_config: Option<RouteConfig>) -> Self {
         Self { route_config }
     }
 }
@@ -35,12 +35,24 @@ pub struct StaticClientProvider {
 }
 
 impl StaticClientProvider {
+    /// Create a new `StaticClientProvider` with a `reqwest` client
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the `reqwest` client cannot be created.
+    #[must_use]
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
             .user_agent("llm-proxy-openai")
             .build()
             .expect("Failed to create reqwest client");
         Self { client }
+    }
+}
+
+impl Default for StaticClientProvider {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -51,7 +63,7 @@ impl ClientProvider for StaticClientProvider {
     }
 }
 
-/// Provider that gets an OpenAI API token from an environment variable
+/// Provider that gets an `OpenAI` API token from an environment variable
 pub struct StaticTokenProvider {
     token: String,
 }
@@ -71,7 +83,7 @@ impl TokenProvider for StaticTokenProvider {
     }
 }
 
-/// Provider that gets an OpenAI API token from an environment variable
+/// Provider that gets an `OpenAI` API token from an environment variable
 pub struct EnvTokenProvider {
     env_var: String,
 }
@@ -83,7 +95,8 @@ impl EnvTokenProvider {
         }
     }
 
-    /// Create a provider that uses the standard OPENAI_API_KEY environment variable
+    /// Create a provider that uses the standard `OPENAI_API_KEY` environment variable
+    #[must_use]
     pub fn standard() -> Self {
         Self::new("OPENAI_API_KEY")
     }
@@ -101,7 +114,7 @@ impl TokenProvider for EnvTokenProvider {
     }
 }
 
-/// Provider that returns a static URL for an OpenAI API endpoint
+/// Provider that returns a static URL for an `OpenAI` API endpoint
 pub struct OpenAIUrlProvider {
     endpoint: String,
 }
@@ -113,17 +126,20 @@ impl OpenAIUrlProvider {
         }
     }
 
-    /// Create a provider for the OpenAI chat completions endpoint
+    /// Create a provider for the `OpenAI` chat completions endpoint
+    #[must_use]
     pub fn chat_completions() -> Self {
         Self::new("https://api.openai.com/v1/chat/completions")
     }
 
-    /// Create a provider for the OpenAI completions endpoint
+    /// Create a provider for the `OpenAI` completions endpoint
+    #[must_use]
     pub fn completions() -> Self {
         Self::new("https://api.openai.com/v1/completions")
     }
 
-    /// Create a provider for the OpenAI embeddings endpoint
+    /// Create a provider for the `OpenAI` embeddings endpoint
+    #[must_use]
     pub fn embeddings() -> Self {
         Self::new("https://api.openai.com/v1/embeddings")
     }
@@ -154,11 +170,11 @@ mod tests {
             "stream": true
         });
 
-        let bytes = serde_json::to_vec(&request).unwrap();
+        let bytes = serde_json::to_vec(&request).expect("Failed to serialize request");
         let result = parser.parse(bytes.into()).await;
         assert!(result.is_ok());
 
-        let parsed = result.unwrap();
+        let parsed = result.expect("Failed to parse request");
         assert!(parsed.stream);
         assert_eq!(parsed.model, "gpt-4");
     }
@@ -172,7 +188,7 @@ mod tests {
         let provider = EnvTokenProvider::new(var_name);
         let result = provider.get_token().await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), test_token);
+        assert_eq!(result.expect("Failed to get token"), test_token);
 
         env::remove_var(var_name);
     }
@@ -183,7 +199,7 @@ mod tests {
         let result = provider.get_url().await;
         assert!(result.is_ok());
         assert_eq!(
-            result.unwrap(),
+            result.expect("Failed to get URL"),
             "https://api.openai.com/v1/chat/completions"
         );
     }

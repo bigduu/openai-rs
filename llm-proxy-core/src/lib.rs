@@ -116,8 +116,9 @@ pub mod types;
 pub use error::Error;
 pub use pipeline::Pipeline;
 pub use traits::{
-    ClientProvider, LLMClient, LLMRequest, LLMResponse, Processor, ProcessorChain, RequestParser,
-    TokenProvider, UrlProvider,
+    client::ClientProvider, client::LLMClient, client::TokenProvider, client::UrlProvider,
+    processor::Processor, processor::ProcessorChain, request::LLMRequest, request::LLMResponse,
+    request::RequestParser,
 };
 pub use types::*;
 

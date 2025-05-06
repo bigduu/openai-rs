@@ -31,7 +31,7 @@ pub struct LLMConfig {
 /// Configuration for a processor in the processing chain
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProcessorConfig {
-    /// The type of processor (e.g., "api_call", "simple_logger", etc.)
+    /// The type of processor (e.g., `api_call`, `simple_logger`, etc.)
     pub processor_type: String,
     /// Configuration value for the processor
     pub config_value: String,

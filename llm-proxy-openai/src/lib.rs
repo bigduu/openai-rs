@@ -1,11 +1,11 @@
-//! # LLM Proxy OpenAI
+//! # LLM Proxy `OpenAI`
 //!
-//! This crate provides OpenAI-specific implementations for the LLM Proxy system.
-//! It implements the core traits defined in `llm-proxy-core` for OpenAI's Chat API.
+//! This crate provides `OpenAI`-specific implementations for the LLM Proxy system.
+//! It implements the core traits defined in `llm-proxy-core` for `OpenAI`'s Chat API.
 //!
 //! ## Features
 //!
-//! - Full support for OpenAI's Chat Completions API
+//! - Full support for `OpenAI`'s Chat Completions API
 //! - Streaming and non-streaming response handling
 //! - Efficient request processing and response parsing
 //! - Automatic token management and API key handling
@@ -14,16 +14,16 @@
 //! ## Components
 //!
 //! ### Client
-//! The [`client`] module provides a high-level client for interacting with OpenAI's API.
+//! The [`client`] module provides a high-level client for interacting with `OpenAI`'s API.
 //! It handles authentication, request formatting, and response parsing.
 //!
 //! ### Providers
 //! The [`providers`] module implements the `Provider` trait from `llm-proxy-core`
-//! for OpenAI's services. This includes handling both streaming and non-streaming
+//! for `OpenAI`'s services. This includes handling both streaming and non-streaming
 //! chat completions.
 //!
 //! ### Types
-//! The [`types`] module defines OpenAI-specific types for requests and responses,
+//! The [`types`] module defines `OpenAI`-specific types for requests and responses,
 //! including chat messages, model parameters, and API responses.
 //!
 //! ## Example Usage
@@ -45,7 +45,7 @@
 //!
 //! ## Configuration
 //!
-//! The OpenAI implementation can be configured through environment variables
+//! The `OpenAI` implementation can be configured through environment variables
 //! and the route configuration:
 //!
 //! ```toml
@@ -63,7 +63,7 @@ pub mod types;
 
 use std::sync::Arc;
 
-use llm_proxy_core::{traits::ProcessorChain, Pipeline};
+use llm_proxy_core::{Pipeline, ProcessorChain};
 
 pub use client::OpenAIClient;
 pub use providers::{EnvTokenProvider, OpenAIRequestParser, OpenAIUrlProvider};
@@ -72,13 +72,13 @@ pub use types::*;
 
 use llm_proxy_core::Processor;
 
-/// Create a new pipeline configured for OpenAI's chat completion API.
+/// Create a new pipeline configured for `OpenAI`'s chat completion API.
 ///
 /// # Arguments
 /// * `processors` - Optional list of processors to apply to requests
-/// * `token_env_var` - Environment variable containing the OpenAI API key (default: "OPENAI_API_KEY")
-/// * `base_url` - Optional base URL for the API (default: "https://api.openai.com/v1/chat/completions")
-/// * `route_config` - Optional route configuration for the RequestParser
+/// * `token_env_var` - Environment variable containing the `OpenAI` API key (default:`OPENAI_API_KEY`EY")
+/// * `base_url` - Optional base URL for the API (default: "<https://api.openai.com/v1/chat/completions>")
+/// * `route_config` - Optional route configuration for the `RequestParser`
 ///
 /// # Returns
 /// A pipeline configured with OpenAI-specific components
@@ -103,6 +103,7 @@ use llm_proxy_core::Processor;
 ///     None
 /// );
 /// ```
+#[must_use]
 pub fn create_chat_pipeline(
     processors: Vec<Arc<dyn Processor<ChatCompletionRequest>>>,
     token_env_var: Option<&str>,
@@ -117,7 +118,7 @@ pub fn create_chat_pipeline(
     let parser = Arc::new(OpenAIRequestParser::new(route_config));
     let processor_chain = Arc::new(ProcessorChain::new(processors));
     let llm_client = Arc::new(OpenAIClient::new(
-        client_provider.clone(),
+        client_provider,
         token_provider,
         url_provider,
     ));

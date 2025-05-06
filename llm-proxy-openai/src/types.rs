@@ -1,9 +1,8 @@
-use llm_proxy_core::traits::LLMRequest;
-use llm_proxy_core::types::Result;
+use llm_proxy_core::{LLMRequest, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// A request to the OpenAI chat completions API
+/// A request to the `OpenAI` chat completions API
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ChatCompletionRequest {
@@ -106,14 +105,14 @@ pub struct StreamDelta {
     pub function_call: Option<FunctionCall>,
 }
 
-/// Error response from the OpenAI API
+/// Error response from the `OpenAI` API
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ErrorResponse {
     /// The error details
     pub error: ErrorDetails,
 }
 
-/// Details of an error from the OpenAI API
+/// Details of an error from the `OpenAI` API
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ErrorDetails {
     /// The error message
@@ -151,7 +150,7 @@ impl LLMRequest for ChatCompletionRequest {
             serde_json::to_value(&self.messages)?,
         );
         map.insert("model".to_string(), serde_json::to_value(&self.model)?);
-        map.insert("stream".to_string(), serde_json::to_value(&self.stream)?);
+        map.insert("stream".to_string(), serde_json::to_value(self.stream)?);
         if let Some(max_tokens) = self.max_tokens {
             map.insert("max_tokens".to_string(), serde_json::to_value(max_tokens)?);
         }
@@ -173,5 +172,9 @@ impl LLMRequest for ChatCompletionRequest {
 
     fn to_value(&self) -> Result<serde_json::Value> {
         Ok(serde_json::to_value(self)?)
+    }
+
+    fn to_bytes(&self) -> Result<bytes::Bytes> {
+        Ok(bytes::Bytes::from(serde_json::to_string(self)?))
     }
 }

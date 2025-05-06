@@ -7,7 +7,7 @@ members = ["llm-proxy-core", "llm-proxy-openai", "llm-proxy-server"]
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
 tokio-stream = "0.1"
-futures-util = { version = "0.3" }
+futures-util = { version = "0.3.30" }
 
 # http client
 reqwest = { version = "0.12.15", features = ["json", "stream"] }

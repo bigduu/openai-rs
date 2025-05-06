@@ -184,9 +184,7 @@ async fn create_openai_pipeline(
     llm_config: &config::LLMConfig,
     route: &config::RouteConfig,
 ) -> Result<Arc<Pipeline<ChatCompletionRequest>>, Error> {
-    // Create OpenAI pipeline
-    let processors = Vec::new(); // TODO: Create processors from config
-
+    let processors = vec![];
     // Convert server RouteConfig to core RouteConfig
     let core_route = llm_proxy_core::types::RouteConfig {
         path_prefix: route.path_prefix.clone(),

@@ -3,7 +3,9 @@ use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::{
-    traits::{LLMClient, LLMRequest, ProcessorChain, RequestParser},
+    traits::{
+        client::LLMClient, processor::ProcessorChain, request::LLMRequest, request::RequestParser,
+    },
     types::{ResponseStream, Result},
 };
 
@@ -200,101 +202,24 @@ impl<T: LLMRequest> Pipeline<T> {
         }
     }
 
-    /// Execute the pipeline on a request.
-    ///
-    /// This method orchestrates the flow of a request through the pipeline:
-    ///
-    /// 1. The raw request bytes are parsed into a structured request
-    /// 2. The request is processed through the processor chain
-    /// 3. The processed request is sent to the LLM service
-    ///
-    /// The entire process is traced with unique IDs and comprehensive logging
-    /// at each stage.
+    /// Execute the pipeline with the given request body.
     ///
     /// # Arguments
     ///
-    /// * `request_body` - Raw bytes of the incoming request
+    /// * `request_body` - The request body as bytes
     ///
     /// # Returns
     ///
-    /// A channel receiver (`ResponseStream`) that will receive response chunks
-    /// from the LLM service. The response format depends on the specific
-    /// LLM service implementation.
+    /// A `Result` containing a `ResponseStream` if successful, or an error if the pipeline execution fails.
     ///
-    /// # Error Handling
+    /// # Errors
     ///
-    /// This method will return an error if any stage fails:
-    /// - Request parsing fails
-    /// - A processor returns an error
-    /// - The LLM client encounters an error
-    ///
-    /// All errors are logged with the trace ID for debugging.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use std::sync::Arc;
-    /// # use anyhow::Result;
-    /// # use bytes::Bytes;
-    /// # use async_trait::async_trait;
-    /// # use llm_proxy_core::{Pipeline, RequestParser, ProcessorChain, LLMClient, ResponseStream, LLMRequest};
-    /// # use tokio::sync::mpsc;
-    /// #
-    /// # struct MyRequest;
-    /// # impl LLMRequest for MyRequest {
-    /// #     fn messages(&self) -> Result<serde_json::Value> { Ok(serde_json::Value::Null) }
-    /// #     fn model(&self) -> Result<String> { Ok("model".to_string()) }
-    /// #     fn stream(&self) -> Result<bool> { Ok(false) }
-    /// #     fn max_tokens(&self) -> Option<u32> { None }
-    /// #     fn to_map(&self) -> Result<std::collections::HashMap<String, serde_json::Value>> { Ok(std::collections::HashMap::new()) }
-    /// #     fn to_value(&self) -> Result<serde_json::Value> { Ok(serde_json::Value::Null) }
-    /// # }
-    /// #
-    /// # struct MyRequestParser;
-    /// # #[async_trait]
-    /// # impl RequestParser<MyRequest> for MyRequestParser {
-    /// #     async fn parse(&self, _body: Bytes) -> Result<MyRequest> {
-    /// #         Ok(MyRequest)
-    /// #     }
-    /// # }
-    /// #
-    /// # struct MyProcessor;
-    /// # #[async_trait]
-    /// # impl llm_proxy_core::Processor<MyRequest> for MyProcessor {
-    /// #     async fn process(&self, request: MyRequest) -> Result<MyRequest> {
-    /// #         Ok(request)
-    /// #     }
-    /// # }
-    /// #
-    /// # struct MyLLMClient;
-    /// # #[async_trait]
-    /// # impl LLMClient<MyRequest> for MyLLMClient {
-    /// #     async fn execute(&self, _request: MyRequest) -> Result<ResponseStream> {
-    /// #         let (tx, rx) = mpsc::channel(1);
-    /// #         Ok(rx)
-    /// #     }
-    /// # }
-    /// #
-    /// # async fn example() -> Result<()> {
-    /// # let pipeline = Pipeline::new(
-    /// #     Arc::new(MyRequestParser),
-    /// #     Arc::new(ProcessorChain::new(vec![Arc::new(MyProcessor)])),
-    /// #     Arc::new(MyLLMClient),
-    /// # );
-    /// // Execute request
-    /// let raw_request = Bytes::from(r#"{"messages": [...]}"#);
-    /// let response_stream = pipeline.execute(raw_request).await?;
-    ///
-    /// // Process response chunks
-    /// while let Some(chunk) = response_stream.recv().await {
-    ///     match chunk {
-    ///         Ok(data) => println!("Received: {:?}", data),
-    ///         Err(e) => eprintln!("Error: {}", e),
-    ///     }
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// This function will return an error if:
+    /// * The request parsing fails
+    /// * The request processing fails
+    /// * The LLM request fails
+    /// * The response processing fails
+    #[allow(clippy::cognitive_complexity)]
     pub async fn execute(&self, request_body: bytes::Bytes) -> Result<ResponseStream> {
         info!(
             trace_id = %self.trace_id,
@@ -345,12 +270,15 @@ mod tests {
     use crate::{LLMRequest, Processor};
     use async_trait::async_trait;
     use bytes::Bytes;
+    use serde::Deserialize;
     use serde_json::Value;
     use tokio::sync::mpsc;
 
     struct MockRequestParser;
 
+    #[derive(Clone, Deserialize)]
     struct MockRequest;
+
     impl LLMRequest for MockRequest {
         fn messages(&self) -> Result<Value> {
             Ok(serde_json::json!({"test": "request"}))
@@ -371,8 +299,7 @@ mod tests {
         fn to_map(&self) -> Result<HashMap<String, Value>> {
             Ok(serde_json::json!({"test": "request"})
                 .as_object()
-                .unwrap()
-                .clone()
+                .expect("Failed to convert JSON to object")
                 .into_iter()
                 .map(|(k, v)| (k.to_string(), v.clone()))
                 .collect())
@@ -380,6 +307,10 @@ mod tests {
 
         fn to_value(&self) -> Result<Value> {
             Ok(serde_json::json!({"test": "request"}))
+        }
+
+        fn to_bytes(&self) -> Result<Bytes> {
+            Ok(Bytes::from("test request"))
         }
     }
 
@@ -421,8 +352,12 @@ mod tests {
         let result = pipeline.execute(Bytes::from("test")).await;
         assert!(result.is_ok());
 
-        let mut rx = result.unwrap();
-        let response = rx.recv().await.unwrap().unwrap();
+        let mut rx = result.expect("Failed to execute pipeline");
+        let response = rx
+            .recv()
+            .await
+            .expect("Failed to receive response")
+            .expect("Failed to unwrap response");
         assert_eq!(response, Bytes::from("test response"));
     }
 }

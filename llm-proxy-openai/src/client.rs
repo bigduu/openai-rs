@@ -5,15 +5,14 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::StreamExt;
 use llm_proxy_core::{
-    traits::{ClientProvider, LLMClient, RequestParser, TokenProvider, UrlProvider},
-    Error, Result,
+    ClientProvider, Error, LLMClient, RequestParser, Result, TokenProvider, UrlProvider,
 };
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use crate::types::{ChatCompletionRequest, ErrorResponse, StreamChunk};
 
-/// Parser for OpenAI chat completion requests
+/// Parser for `OpenAI` chat completion requests
 pub struct OpenAIRequestParser;
 
 #[async_trait]
@@ -25,7 +24,7 @@ impl RequestParser<ChatCompletionRequest> for OpenAIRequestParser {
     }
 }
 
-/// OpenAI-specific implementation of LLMClient
+/// OpenAI-specific implementation of `LLMClient`
 pub struct OpenAIClient {
     client_provider: Arc<dyn ClientProvider>,
     token_provider: Arc<dyn TokenProvider>,
@@ -45,7 +44,7 @@ impl Clone for OpenAIClient {
 }
 
 impl OpenAIClient {
-    /// Create a new OpenAI client with the given providers
+    /// Create a new `OpenAI` client with the given providers
     pub fn new(
         client_provider: Arc<dyn ClientProvider>,
         token_provider: Arc<dyn TokenProvider>,
@@ -59,7 +58,7 @@ impl OpenAIClient {
         }
     }
 
-    /// Send request to OpenAI and get response
+    /// Send request to `OpenAI` and get response
     async fn send_request(
         &self,
         request: &ChatCompletionRequest,
@@ -91,7 +90,7 @@ impl OpenAIClient {
         Ok(response)
     }
 
-    /// Process a streaming response from OpenAI
+    /// Process a streaming response from `OpenAI`
     async fn handle_stream(
         self,
         response: reqwest::Response,
@@ -163,7 +162,7 @@ impl OpenAIClient {
         Ok(())
     }
 
-    /// Process a non-streaming response from OpenAI
+    /// Process a non-streaming response from `OpenAI`
     async fn handle_non_stream(
         self,
         response: reqwest::Response,
@@ -213,6 +212,7 @@ impl LLMClient<ChatCompletionRequest> for OpenAIClient {
         // 4. Handle response based on streaming flag
         let client = self.clone();
         let stream = request.stream;
+        info!("The request is streaming: {}", stream);
         tokio::spawn(async move {
             let result = if stream {
                 client.handle_stream(response, tx).await
@@ -232,7 +232,7 @@ impl LLMClient<ChatCompletionRequest> for OpenAIClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use llm_proxy_core::traits::{ClientProvider, TokenProvider, UrlProvider};
+    use llm_proxy_core::{ClientProvider, TokenProvider, UrlProvider};
 
     struct MockClientProvider;
     struct MockTokenProvider;
@@ -280,13 +280,14 @@ mod tests {
 
         let result = client
             .request_parser
-            .parse(Bytes::from(serde_json::to_vec(&request).unwrap()))
-            .await;
-        assert!(result.is_ok());
+            .parse(Bytes::from(
+                serde_json::to_vec(&request).expect("Failed to serialize request"),
+            ))
+            .await
+            .expect("Failed to parse request");
 
-        let parsed = result.unwrap();
-        assert_eq!(parsed.model, "gpt-4");
-        assert_eq!(parsed.messages.len(), 1);
-        assert!(parsed.stream);
+        assert_eq!(result.model, "gpt-4");
+        assert_eq!(result.messages.len(), 1);
+        assert!(result.stream);
     }
 }
