@@ -4,41 +4,25 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::StreamExt;
-use llm_proxy_core::{
-    ClientProvider, Error, LLMClient, RequestParser, Result, TokenProvider, UrlProvider,
-};
+use llm_proxy_core::{ClientProvider, Error, LLMClient, Result, TokenProvider, UrlProvider};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use crate::types::{ChatCompletionRequest, ErrorResponse, StreamChunk};
 
-/// Parser for `OpenAI` chat completion requests
-pub struct OpenAIRequestParser;
-
-#[async_trait]
-impl RequestParser<ChatCompletionRequest> for OpenAIRequestParser {
-    async fn parse(&self, body: Bytes) -> Result<ChatCompletionRequest> {
-        let request: ChatCompletionRequest = serde_json::from_slice(&body)
-            .map_err(|e| Error::ParseError(format!("Failed to parse OpenAI request: {e}")))?;
-        Ok(request)
-    }
-}
-
 /// OpenAI-specific implementation of `LLMClient`
 pub struct OpenAIClient {
-    client_provider: Arc<dyn ClientProvider>,
-    token_provider: Arc<dyn TokenProvider>,
-    url_provider: Arc<dyn UrlProvider>,
-    request_parser: OpenAIRequestParser,
+    client: Arc<dyn ClientProvider>,
+    token: Arc<dyn TokenProvider>,
+    url: Arc<dyn UrlProvider>,
 }
 
 impl Clone for OpenAIClient {
     fn clone(&self) -> Self {
         Self {
-            client_provider: self.client_provider.clone(),
-            token_provider: self.token_provider.clone(),
-            url_provider: self.url_provider.clone(),
-            request_parser: OpenAIRequestParser,
+            client: self.client.clone(),
+            token: self.token.clone(),
+            url: self.url.clone(),
         }
     }
 }
@@ -51,10 +35,9 @@ impl OpenAIClient {
         url_provider: Arc<dyn UrlProvider>,
     ) -> Self {
         Self {
-            client_provider,
-            token_provider,
-            url_provider,
-            request_parser: OpenAIRequestParser,
+            client: client_provider,
+            token: token_provider,
+            url: url_provider,
         }
     }
 
@@ -215,17 +198,17 @@ impl LLMClient<ChatCompletionRequest> for OpenAIClient {
     ) -> Result<mpsc::Receiver<Result<Bytes>>> {
         // 1. Get dependencies
         let client = self
-            .client_provider
+            .client
             .get_client()
             .await
             .map_err(|e| Error::LLMError(format!("Failed to get HTTP client: {e}")))?;
         let token = self
-            .token_provider
+            .token
             .get_token()
             .await
             .map_err(|e| Error::LLMError(format!("Failed to get API token: {e}")))?;
         let url = self
-            .url_provider
+            .url
             .get_url()
             .await
             .map_err(|e| Error::LLMError(format!("Failed to get API URL: {e}")))?;
@@ -284,37 +267,5 @@ mod tests {
         async fn get_url(&self) -> Result<String> {
             Ok("https://api.openai.com/v1/chat/completions".to_string())
         }
-    }
-
-    #[tokio::test]
-    async fn test_parse_request() {
-        let client = OpenAIClient::new(
-            Arc::new(MockClientProvider),
-            Arc::new(MockTokenProvider),
-            Arc::new(MockUrlProvider),
-        );
-
-        let request = serde_json::json!({
-            "model": "gpt-4",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": "Hello!"
-                }
-            ],
-            "stream": true
-        });
-
-        let result = client
-            .request_parser
-            .parse(Bytes::from(
-                serde_json::to_vec(&request).expect("Failed to serialize request"),
-            ))
-            .await
-            .expect("Failed to parse request");
-
-        assert_eq!(result.model, "gpt-4");
-        assert_eq!(result.messages.len(), 1);
-        assert!(result.stream);
     }
 }
