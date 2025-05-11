@@ -108,14 +108,13 @@ pub fn create_chat_pipeline(
     processors: Vec<Arc<dyn Processor<ChatCompletionRequest>>>,
     token_env_var: Option<&str>,
     base_url: Option<&str>,
-    route_config: Option<llm_proxy_core::types::RouteConfig>,
 ) -> Pipeline<ChatCompletionRequest> {
     let client_provider = Arc::new(StaticClientProvider::new());
     let token_provider = Arc::new(StaticTokenProvider::new(token_env_var.unwrap_or("")));
     let url_provider = Arc::new(OpenAIUrlProvider::new(
         base_url.unwrap_or("https://api.openai.com/v1/chat/completions"),
     ));
-    let parser = Arc::new(OpenAIRequestParser::new(route_config));
+    let parser = Arc::new(OpenAIRequestParser::new());
     let processor_chain = Arc::new(ProcessorChain::new(processors));
     let llm_client = Arc::new(OpenAIClient::new(
         client_provider,

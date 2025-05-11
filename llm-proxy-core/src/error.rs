@@ -16,7 +16,7 @@ pub enum Error {
     Other(anyhow::Error),
     JsonError(serde_json::Error),
     IoError(std::io::Error),
-    PythonError(String),
+    AuthenticationError(String),
 }
 
 impl std::error::Error for Error {}
@@ -32,7 +32,7 @@ impl fmt::Display for Error {
             Self::Other(e) => write!(f, "Error: {e}"),
             Self::JsonError(e) => write!(f, "JSON error: {e}"),
             Self::IoError(e) => write!(f, "IO error: {e}"),
-            Self::PythonError(e) => write!(f, "Python error: {e}"),
+            Self::AuthenticationError(e) => write!(f, "AuthenticationError error: {e}"),
         }
     }
 }

@@ -27,6 +27,29 @@ pub struct ChatCompletionRequest {
     pub additional_params: HashMap<String, serde_json::Value>,
 }
 
+impl ChatCompletionRequest {
+    /// Create a new `ChatCompletionRequest` with the given model and messages
+    pub fn new_stream(model: String, messages: Vec<Message>) -> Self {
+        Self::new(model, messages, true)
+    }
+
+    pub fn new_block(model: String, messages: Vec<Message>) -> Self {
+        Self::new(model, messages, false)
+    }
+
+    pub fn new(model: String, messages: Vec<Message>, stream: bool) -> Self {
+        Self {
+            model,
+            messages,
+            stream,
+            max_tokens: None,
+            temperature: None,
+            functions: None,
+            additional_params: HashMap::new(),
+        }
+    }
+}
+
 /// A message in a chat completion request/response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -70,11 +93,13 @@ pub struct StreamChunk {
     /// The ID of this chunk
     pub id: String,
     /// The object type (always "chat.completion.chunk")
-    pub object: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub object: Option<String>,
     /// Unix timestamp of when the chunk was created
     pub created: u64,
     /// The model that generated this chunk
-    pub model: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     /// Array of choices (usually just one) in this chunk
     pub choices: Vec<StreamChoice>,
 }

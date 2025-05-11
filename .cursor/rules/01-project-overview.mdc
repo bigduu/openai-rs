@@ -3,3 +3,21 @@ description:
 globs:
 alwaysApply: false
 ---
+# @openai-rs Project Overview
+
+@openai-rs is a modular, extensible proxy server for Large Language Model (LLM) APIs. It provides a unified, configurable interface for routing, processing, and serving requests to multiple LLM providers (e.g., OpenAI), with a focus on streaming, security, and observability.
+
+## Key Features
+- **Configurable request routing**: Route requests to different LLM providers based on path patterns ([llm-proxy-server/config.example.toml](mdc:llm-proxy-server/config.example.toml)).
+- **Streaming support**: Efficient handling of streaming and non-streaming responses.
+- **Extensible provider system**: Add new LLM providers by implementing the [`LLMClient`](mdc:llm-proxy-core/src/traits/client.rs) trait.
+- **Request processing pipeline**: Chainable processors for request transformation ([examples](mdc:llm-proxy-core/examples.md)).
+- **Security**: Token management, CORS, and request validation.
+- **Observability**: Tracing, logging, and error reporting.
+
+## Architecture
+- **Core crate**: [llm-proxy-core](mdc:llm-proxy-core/) defines traits, types, and the processing pipeline.
+- **Provider crate**: [llm-proxy-openai](mdc:llm-proxy-openai/) implements OpenAI API integration.
+- **Server crate**: [llm-proxy-server](mdc:llm-proxy-server/) provides the HTTP server, configuration, and route management.
+
+See [README.md](mdc:README.md) and [ARCHITECTURE.md](mdc:docs/ARCHITECTURE.md) for more details.

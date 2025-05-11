@@ -7,7 +7,7 @@ members = ["llm-proxy-core", "llm-proxy-openai", "llm-proxy-server"]
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
 tokio-stream = "0.1"
-futures-util = { version = "0.3.30" }
+futures-util = { version = "0.3.31" }
 
 # http client
 reqwest = { version = "0.12.15", features = ["json", "stream"] }
@@ -32,8 +32,8 @@ tracing-subscriber = { version = "0.3.19", features = [
 env_logger = { version = "0.11" }
 
 # Utils
-bytes = { version = "1.6.0" }
-uuid = { version = "1.7.0", features = ["v4", "serde"] }
+bytes = { version = "1.10.1" }
+uuid = { version = "1.16.0", features = ["v4", "serde"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

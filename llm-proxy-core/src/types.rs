@@ -39,29 +39,3 @@ pub struct ProcessorConfig {
     #[serde(default)]
     pub additional_config: serde_json::Value,
 }
-
-/// Configuration for a route that maps requests to LLM backends
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RouteConfig {
-    /// The URL path prefix to match for this route
-    pub path_prefix: String,
-    /// The ID of the target LLM backend to use
-    pub target_llm: String,
-    /// List of processor IDs to apply in order
-    pub processors: Vec<String>,
-    /// Whether to allow streaming responses on this route
-    pub allow_streaming: bool,
-    /// Whether to allow non-streaming responses on this route
-    pub allow_non_streaming: bool,
-}
-
-/// Complete configuration for the LLM proxy
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProxyConfig {
-    /// Map of LLM backend configurations by ID
-    pub llm: std::collections::HashMap<String, LLMConfig>,
-    /// Map of processor configurations by ID
-    pub processors: std::collections::HashMap<String, ProcessorConfig>,
-    /// List of route configurations
-    pub routes: Vec<RouteConfig>,
-}

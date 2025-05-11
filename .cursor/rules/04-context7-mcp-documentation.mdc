@@ -1,0 +1,43 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Context7 MCP Documentation Check Rule
+
+Before making any code changes or planning implementation in this workspace, you MUST:
+
+1. **Library Resolution**
+   - Use Context7's `resolve-library-id` to get the correct library ID for any technology, crate, or dependency being modified.
+   - Always verify the match based on name, description, and documentation coverage.
+
+2. **Documentation Retrieval**
+   - Use `get-library-docs` to fetch the latest documentation for the resolved library ID.
+   - Focus queries on topics relevant to the planned changes (e.g., traits, async patterns, actix-web, etc.).
+   - Request sufficient token count to cover the necessary context.
+
+3. **Required Tech Stack Documentation**
+   - For this project, always check documentation for:
+     - Rust core libraries and async ecosystem (tokio, actix-web, etc.)
+     - Any LLM provider crates or dependencies being used or modified
+     - Any additional libraries relevant to your change
+
+4. **Implementation Guidelines**
+   - Document all MCP query results in your planning or PR description.
+   - Validate your implementation against current best practices from the fetched documentation.
+   - Consider version compatibility when suggesting changes.
+
+## Example Query Sequence
+```typescript
+// 1. Resolve library ID
+resolve-library-id("actix-web")
+
+// 2. Get specific documentation
+get-library-docs({
+  context7CompatibleLibraryID: "actix/actix-web",
+  topic: "middleware",
+  tokens: 5000
+})
+```
+
+**You must query documentation for ALL relevant technologies before proceeding with any code changes or architectural decisions.**

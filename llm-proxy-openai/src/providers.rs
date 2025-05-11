@@ -2,22 +2,17 @@ use std::env;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use llm_proxy_core::{
-    ClientProvider, Error, RequestParser, Result, RouteConfig, TokenProvider, UrlProvider,
-};
+use llm_proxy_core::{ClientProvider, Error, RequestParser, Result, TokenProvider, UrlProvider};
 
 use crate::ChatCompletionRequest;
 
 /// Parser for `OpenAI` chat completion requests
-pub struct OpenAIRequestParser {
-    route_config: Option<RouteConfig>,
-}
+pub struct OpenAIRequestParser;
 
 impl OpenAIRequestParser {
     /// Create a new `OpenAI` request parser with the given route configuration
-    #[must_use]
-    pub const fn new(route_config: Option<RouteConfig>) -> Self {
-        Self { route_config }
+    pub const fn new() -> Self {
+        Self {}
     }
 }
 
@@ -145,9 +140,8 @@ impl OpenAIUrlProvider {
     }
 }
 
-#[async_trait]
 impl UrlProvider for OpenAIUrlProvider {
-    async fn get_url(&self) -> Result<String> {
+    fn get_url(&self) -> Result<String> {
         Ok(self.endpoint.clone())
     }
 }
@@ -158,7 +152,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_request_parser() {
-        let parser = OpenAIRequestParser::new(None);
+        let parser = OpenAIRequestParser::new();
         let request = serde_json::json!({
             "model": "gpt-4",
             "messages": [

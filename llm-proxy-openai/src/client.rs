@@ -210,7 +210,6 @@ impl LLMClient<ChatCompletionRequest> for OpenAIClient {
         let url = self
             .url
             .get_url()
-            .await
             .map_err(|e| Error::LLMError(format!("Failed to get API URL: {e}")))?;
 
         // 2. Create response channel

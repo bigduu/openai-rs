@@ -3,3 +3,34 @@ description:
 globs:
 alwaysApply: false
 ---
+# @openai-rs Development Guidelines
+
+## General Principles
+- Use idiomatic Rust: favor async/await, error handling with `anyhow`, and strong typing with `serde`.
+- Modularize code: keep provider logic, core traits, and server logic in separate crates.
+- Write clear, documented code; use doc comments and reference [ARCHITECTURE.md](mdc:docs/ARCHITECTURE.md).
+- Prefer composition over inheritance; use traits for extensibility.
+
+## Crate Responsibilities
+- **llm-proxy-core**: Core traits (`LLMClient`, `Processor`, `Pipeline`), types, and error handling.
+- **llm-proxy-openai**: OpenAI-specific client, types, and provider implementation.
+- **llm-proxy-server**: HTTP server, configuration parsing, route and pipeline orchestration.
+
+## Configuration
+- Use TOML files for server, provider, processor, and route configuration ([config.example.toml](mdc:llm-proxy-server/config.example.toml)).
+- Store secrets (API keys) in environment variables, referenced in config.
+
+## Extending the System
+- To add a new provider, implement the `LLMClient` trait and register it in the config.
+- To add a processor, implement the `Processor` trait and add it to the pipeline.
+- See [IMPLEMENTING_PROVIDERS.md](mdc:docs/IMPLEMENTING_PROVIDERS.md) and [examples.md](mdc:docs/examples.md) for step-by-step guides.
+
+## Testing & Observability
+- Use `cargo test` for unit and integration tests.
+- Use `tracing` and `env_logger` for logging and debugging.
+- Monitor and handle errors with meaningful messages.
+
+## References
+- [ARCHITECTURE.md](mdc:docs/ARCHITECTURE.md)
+- [examples.md](mdc:docs/examples.md)
+- [IMPLEMENTING_PROVIDERS.md](mdc:docs/IMPLEMENTING_PROVIDERS.md)

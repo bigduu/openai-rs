@@ -198,20 +198,11 @@ fn create_openai_pipeline(
     route: &config::RouteConfig,
 ) -> Arc<Pipeline<ChatCompletionRequest>> {
     let processors = vec![];
-    // Convert server RouteConfig to core RouteConfig
-    let core_route = llm_proxy_core::types::RouteConfig {
-        path_prefix: route.path_prefix.clone(),
-        target_llm: route.target_llm.clone(),
-        processors: route.processors.clone(),
-        allow_streaming: route.allow_streaming,
-        allow_non_streaming: route.allow_non_streaming,
-    };
 
     let pipeline = llm_proxy_openai::create_chat_pipeline(
         processors,
         Some(&llm_config.token_env),
         Some(&llm_config.base_url),
-        Some(core_route),
     );
 
     Arc::new(pipeline)

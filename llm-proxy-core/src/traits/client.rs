@@ -99,10 +99,9 @@ pub trait TokenProvider: Send + Sync {
 ///     }
 /// }
 /// ```
-#[async_trait]
 pub trait UrlProvider: Send + Sync {
     /// Get the URL for the LLM service endpoint.
-    async fn get_url(&self) -> Result<String>;
+    fn get_url(&self) -> Result<String>;
 }
 
 /// Trait for providing an HTTP client.

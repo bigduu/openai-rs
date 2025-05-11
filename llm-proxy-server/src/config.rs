@@ -47,21 +47,6 @@ pub struct ProcessorConfig {
     pub additional_config: serde_json::Value,
 }
 
-/// Configuration for a route that maps requests to LLM backends
-#[derive(Debug, Deserialize, Clone)]
-pub struct RouteConfig {
-    /// The URL path prefix to match for this route
-    pub path_prefix: String,
-    /// The ID of the target LLM backend to use
-    pub target_llm: String,
-    /// List of processor IDs to apply in order
-    pub processors: Vec<String>,
-    /// Whether to allow streaming responses on this route
-    pub allow_streaming: bool,
-    /// Whether to allow non-streaming responses on this route
-    pub allow_non_streaming: bool,
-}
-
 /// Server-specific configuration settings
 #[derive(Debug, Deserialize, Clone)]
 pub struct ServerConfig {
